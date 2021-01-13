@@ -13,6 +13,22 @@ const importObject = {
       importObject.output += "\n";
       return arg;
     },
+
+    abs: (arg : number) => {
+      return Math.abs(arg);
+    },
+
+    max: (arg0 : number, arg1 : number) => {
+      return Math.max(arg0, arg1);
+    },
+
+    min: (arg0 : number, arg1 : number) => {
+      return Math.min(arg0, arg1);
+    },
+
+    pow: (arg0 : number, arg1 : number) => {
+      return Math.floor(Math.pow(arg0, arg1));
+    }
   },
 
   output: ""
@@ -61,6 +77,13 @@ describe('run(source, config) function', () => {
   it('adds two numbers', async() => {
     const result = await run("2 + 3", config);
     expect(result).to.equal(5);
+  });
+
+  // Note: it is often helpful to write tests for a functionality before you
+  // implement it. You will make this test pass!
+  it('get absolute value of a negative number', async() => {
+    const result = await run("abs(2 - 3)", config);
+    expect(result).to.equal(1);
   });
 
   // TODO: add additional tests here to ensure the compiler runs as expected

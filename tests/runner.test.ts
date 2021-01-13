@@ -27,6 +27,7 @@ const importObject = {
     },
 
     pow: (arg0 : number, arg1 : number) => {
+      console.log("arg0: "+arg0+" , arg1: "+arg1);
       return Math.floor(Math.pow(arg0, arg1));
     }
   },
@@ -91,6 +92,13 @@ describe('run(source, config) function', () => {
   it('get max value of two numbers', async() => {
     const result = await run("max(2,3)", config);
     expect(result).to.equal(3);
+  });
+
+  // Note: it is often helpful to write tests for a functionality before you
+  // implement it. You will make this test pass!
+  it('square of 2', async() => {
+    const result = await run("pow(1+2,3+4)", config);
+    expect(result).to.equal(Math.pow(3,7));
   });
 
   // TODO: add additional tests here to ensure the compiler runs as expected

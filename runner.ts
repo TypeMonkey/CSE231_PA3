@@ -44,6 +44,7 @@ export async function run(source : string, config: any) : Promise<number> {
       ${returnExpr}
     )
   )`;
+
   const myModule = wabtInterface.parseWat("test.wat", wasmSource);
   var asBinary = myModule.toBinary({});
   var wasmModule = await WebAssembly.instantiate(asBinary.buffer, importObject);

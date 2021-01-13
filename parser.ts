@@ -10,22 +10,21 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
     case "Number":          return {tag: "num", value: Number(s.substring(c.from, c.to))};
     case "VariableName":    return {tag: "id", name: s.substring(c.from, c.to)};
     case "BinaryExpression" : {
-      //console.log(" ==> In BinaryExpression");
+      console.log(" ==> In BinaryExpression");
       c.firstChild();  //traverses left expr
-      //console.log("    * first child: "+c.type.name);
+      console.log("    * first child: "+c.type.name);
       let leftExpr : Expr = traverseExpr(c,s);
-      //console.log("       ==> first child ACTUAL: "+leftExpr.tag);
+      console.log("       ==> first child ACTUAL: "+leftExpr.tag);
 
       c.nextSibling(); //traveses the operator
       let opStr : string = s.substring(c.from, c.to);
-      //console.log("   * next sibling: "+c.type.name+" | ISO: "+opStr);
+      console.log("   * next sibling: "+c.type.name+" | ISO: "+opStr);
 
       c.nextSibling(); //traverses the right expr
-      //console.log("   * next next sibling: "+c.type.name);
+      console.log("   * next next sibling: "+c.type.name);
       let rightExpr : Expr = traverseExpr(c,s);
 
-      c.parent(); //pop BinaryExpression
-      //console.log("   * parent: "+c.type.name);
+      c.parent(); //traverse back to parent
 
       switch (opStr) {
         case BinOp.Add: return {tag: "bopexpr", op : BinOp.Add, left: leftExpr, right : rightExpr};
@@ -54,7 +53,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 
       c.nextSibling(); // This is either a comma or ')'. If comma, there's a second argument
       let unknownIfArg : string = s.substring(c.from, c.to);
-      console.log("    * UNKNONWL "+unknownIfArg);
+      console.log("    * UNKNONW "+unknownIfArg);
 
       let secondArg : Expr = null;
       if(unknownIfArg === ","){
@@ -77,9 +76,9 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
           if(secondArg !== null){
             //there's a second argument. Now check if function is in builtin2
             switch(callName){
-              case BuiltIn2.Max:  return {tag: "builtin2", name: BuiltIn1.Print, arg0: firstArg, arg1: secondArg};
-              case BuiltIn2.Min:  return {tag: "builtin2", name: BuiltIn1.Abs, arg0: firstArg, arg1: secondArg};
-              case BuiltIn2.Pow:  return {tag: "builtin2", name: BuiltIn1.Print, arg0: firstArg, arg1: secondArg};
+              case BuiltIn2.Max:  return {tag: "builtin2", name: BuiltIn2.Max, arg0: firstArg, arg1: secondArg};
+              case BuiltIn2.Min:  return {tag: "builtin2", name: BuiltIn2.Min, arg0: firstArg, arg1: secondArg};
+              case BuiltIn2.Pow:  return {tag: "builtin2", name: BuiltIn2.Pow, arg0: firstArg, arg1: secondArg};
               default: {
                 console.log(`One arg function call to func ${callName}. Not in builtin2`);
                 throw new Error("g Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));

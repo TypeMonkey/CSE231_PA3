@@ -51,9 +51,11 @@ function codeGenExpr(expr : Expr) : Array<string> {
       return argStmts.concat([`(call $${expr.name})`]);
     }
     case "builtin2": {
-      const argStmts = codeGenExpr(expr.arg1);
-      argStmts.concat(codeGenExpr(expr.arg0));
-      return argStmts.concat([`(call $${expr.name})`]); 
+      const argStmts = codeGenExpr(expr.arg0);
+
+      //console.log("-> CODE GEN: "+arg);
+
+      return argStmts.concat(codeGenExpr(expr.arg1), [`(call $${expr.name})`]); 
     }
     case "bopexpr": {
       let leftInstr : Array<string> = codeGenExpr(expr.left);

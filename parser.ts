@@ -33,7 +33,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
         case BinOp.Mul: return {tag: "bopexpr", op : BinOp.Mul, left: leftExpr, right : rightExpr};
       }
 
-      throw new Error("f Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
+      throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
     }
     case "CallExpression":
       console.log(" ==> In CallExpression");
@@ -44,7 +44,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       c.nextSibling(); // go to arglist
       console.log("    * next sib: "+c.type.name);
 
-      c.firstChild(); // go into arglist
+      c.firstChild(); // go into arglist - the '('  token'
       console.log("    * next sib fc: "+c.type.name);
 
       c.nextSibling(); // find single argument in arglist
@@ -52,15 +52,20 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 
       let firstArg : Expr = traverseExpr(c, s);
 
+      c.nextSibling(); // This is either a comma or ')'. If comma, there's a second argument
+      let unknownIfArg : string = s.substring(c.from, c.to);
+      console.log("    * UNKNONWL "+unknownIfArg);
+
       let secondArg : Expr = null;
-      if(c.nextSibling()){
-        console.log("    * next sib fc nb sb: "+c.type.name);
-        secondArg = traverseExpr(c,s);
-        c.parent();
+      if(unknownIfArg === ","){
+        //two arg function call. (this is builtin1)
+        c.nextSibling(); //parse 2nd argument
+        secondArg = traverseExpr(c, s);
+        c.nextSibling(); //skips ending ')'
       }
 
-      c.parent(); // pop arglist
-      c.parent(); // pop CallExpression
+      //c.parent(); // pop arglist
+      //c.parent(); // pop CallExpression
 
       //check if function name is in builtin1. If so, we expect only one arg
       switch (callName) {
@@ -82,13 +87,14 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
           }
           else{
             console.log(`One arg function call to func ${callName}. Not in builtin1`);
+            throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
           }
         }
       }   
 
     default:
       //DEV NOTE: This is problematic but fixes a lot of problems
-      //throw new Error("e Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to)+" | "+c.type.name);
+      throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to)+" | "+c.type.name);
   }
 }
 
@@ -112,7 +118,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       c.parent(); // pop going into stmt
       return { tag: "expr", expr: expr }
     default:
-      throw new Error("s Could not parse stmt at " + c.node.from + " " + c.node.to + ": " + s.substring(c.from, c.to));
+      throw new Error("Could not parse stmt at " + c.node.from + " " + c.node.to + ": " + s.substring(c.from, c.to));
   }
 }
 
@@ -127,7 +133,7 @@ export function traverse(c : TreeCursor, s : string) : Array<Stmt> {
       console.log("traversed " + stmts.length + " statements ", stmts, "stopped at " , c.node);
       return stmts;
     default:
-      throw new Error("t Could not parse program at " + c.node.from + " " + c.node.to);
+      throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
   }
 }
 export function parse(source : string) : Array<Stmt> {

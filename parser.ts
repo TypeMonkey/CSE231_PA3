@@ -61,6 +61,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
         //two arg function call. (this is builtin1)
         c.nextSibling(); //parse 2nd argument
         secondArg = traverseExpr(c, s);
+        console.log("SECOND ARG: "+unknownIfArg+" | "+secondArg);
         c.nextSibling(); //skips ending ')'
       }
 
@@ -73,7 +74,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
         case BuiltIn1.Abs:  return {tag: "builtin1", name: BuiltIn1.Abs, arg0: firstArg};
         default: {
           //function being called isn't in builtin1.
-          if(secondArg === null){
+          if(secondArg !== null){
             //there's a second argument. Now check if function is in builtin2
             switch(callName){
               case BuiltIn2.Max:  return {tag: "builtin2", name: BuiltIn1.Print, arg0: firstArg, arg1: secondArg};
@@ -81,20 +82,20 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
               case BuiltIn2.Pow:  return {tag: "builtin2", name: BuiltIn1.Print, arg0: firstArg, arg1: secondArg};
               default: {
                 console.log(`One arg function call to func ${callName}. Not in builtin2`);
-                throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
+                throw new Error("g Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
               }
             }
           }
           else{
             console.log(`One arg function call to func ${callName}. Not in builtin1`);
-            throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
+            throw new Error("e Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to)+" | "+callName);
           }
         }
       }   
 
     default:
       //DEV NOTE: This is problematic but fixes a lot of problems
-      throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to)+" | "+c.type.name);
+      throw new Error("f Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to)+" | "+c.type.name);
   }
 }
 

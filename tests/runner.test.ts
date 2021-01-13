@@ -86,5 +86,12 @@ describe('run(source, config) function', () => {
     expect(result).to.equal(1);
   });
 
+  // Note: it is often helpful to write tests for a functionality before you
+  // implement it. You will make this test pass!
+  it('get max value of two numbers', async() => {
+    const result = await run("max(2,3)", config);
+    expect(result).to.equal(3);
+  });
+
   // TODO: add additional tests here to ensure the compiler runs as expected
 });

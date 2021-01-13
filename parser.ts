@@ -64,8 +64,8 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
         c.nextSibling(); //skips ending ')'
       }
 
-      //c.parent(); // pop arglist
-      //c.parent(); // pop CallExpression
+      c.parent(); // pop arglist
+      c.parent(); // pop CallExpression
 
       //check if function name is in builtin1. If so, we expect only one arg
       switch (callName) {

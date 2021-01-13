@@ -101,5 +101,12 @@ describe('run(source, config) function', () => {
     expect(result).to.equal(Math.pow(3,7));
   });
 
+  // Note: it is often helpful to write tests for a functionality before you
+  // implement it. You will make this test pass!
+  it('square of 2', async() => {
+    const result = await run("pow(max(1,2),min(5,1+3))", config);
+    expect(result).to.equal(Math.pow(2,4));
+  });
+
   // TODO: add additional tests here to ensure the compiler runs as expected
 });

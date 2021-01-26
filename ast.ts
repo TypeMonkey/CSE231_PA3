@@ -59,6 +59,7 @@ export enum Type{
 
 export type Stmt =
   | { tag: "assign", name: string, value: Expr }
+  | { tag: "vardec", name: string, info: VarDeclr}
   | { tag: "cond", ifStatement: IfStatement}
   | { tag: "whileloop", cond: Expr, body: Array<Stmt>}
   | { tag: "pass" }
@@ -86,6 +87,30 @@ export type Literal =
     { tag: "None" }
   | { tag: "Boolean", value: boolean }
   | { tag: "Number", value: number}
+
+/**
+ * Returns the signature of a function
+ * @param func - the function whose signature is to generate
+ */
+export function funcSig(func : FuncDef) : string{
+  let sig : string = func.name+"(";
+
+  Array.from(func.params.values()).forEach(value => sig += value+",");
+
+  return sig+")";
+}
+
+/**
+ * Returns the signature of the function a function invocation is calling
+ * @param func - the signature of the function a function invocation is calling
+ */
+export function generateFuncSig(name: string, argTypes:Array<Type>) : string{
+  let sig : string = name+"(";
+
+  argTypes.forEach(value => sig += value+",");
+
+  return sig;
+}
 
 /**
  * Returns the proper string representation of

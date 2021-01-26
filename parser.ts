@@ -12,6 +12,7 @@ import {BinOp,
         Type, 
         toString,
         VarDeclr} from "./ast";
+import { organizeProgram } from "./form";
 
 export function traverseExpr(c : TreeCursor, s : string) : Expr {
 
@@ -138,13 +139,42 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 export function traverseStmt(c : TreeCursor, s : string) : Stmt {
   switch(c.node.type.name) {
     case "AssignStatement": {
-      c.firstChild(); // go to name
-      const name = s.substring(c.from, c.to);
-      c.nextSibling(); // go to equals
-      c.nextSibling(); // go to value
-      const value = traverseExpr(c, s);
+      console.log("**** ASSIGN? "+s.substring(c.from, c.to));
+
+      c.firstChild(); //goes into AssignStatement, landing on the variable name
+      let varName: string = s.substring(c.from, c.to);
+
+      c.nextSibling(); //maybe a TypeDef or AssignOp
+      let localVarType : Type = undefined;
+      if(c.node.type.name as string === "TypeDef"){
+        //this is a local variable declaration.
+        c.firstChild(); //goes into TypeDef and lands on ":"
+
+        c.nextSibling(); //goes to type name
+        const lvarTypeName = s.substring(c.from, c.to);
+        switch(lvarTypeName){
+          case Type.Int : {localVarType = Type.Int; break;}
+          case Type.Bool : {localVarType = Type.Bool; break;}
+          default: throw new Error("Unknown type '"+lvarTypeName+"'");
+        }
+
+        c.parent();
+        c.nextSibling();
+
+        console.log("      -> is local var dec: "+c.node.type.name);
+      }
+
+      c.nextSibling(); //value of the variable 
+      let lvarValue : Expr = traverseExpr(c,s);
       c.parent();
-      return { tag: "assign", name: name, value: value};
+      console.log("******END OF VAR '"+varName+"'");
+
+      if(localVarType === undefined){
+        return {tag: "assign", name: varName, value : lvarValue};
+      }
+      else{
+        return {tag: "vardec", name: varName, info: {varType: localVarType, value: lvarValue}};
+      }
     }
     case "FunctionDefinition" : {
       c.firstChild();  //enters func def. and lands on "def" keyword
@@ -168,6 +198,11 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
           console.log(" --- PARAM FOR: '"+funcName+"' : "+s.substring(c.from, c.to)+" ? "+expectName);
           if(expectName){
             tempParamName = s.substring(c.from, c.to);
+
+            if(params.has(tempParamName)){
+              throw new Error("Already has a parameter '"+tempParamName+"'");
+            }
+
             expectName = false;
           }
           else{
@@ -189,7 +224,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       }
       c.parent();  //go back to parent, from ParamList
 
-      c.nextSibling(); //next node shouls either be a TypeDef or Body
+      c.nextSibling(); //next node should either be a TypeDef or Body
       let returnType : Type = Type.None;
       if(c.node.type.name as string === "TypeDef"){
         c.firstChild(); //lands on arrow
@@ -252,6 +287,9 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
               funcStates.push({tag: "assign", name: varName, value : lvarValue});
             }
             else{
+              if(funcLocalVars.has(varName) || params.has(varName)){
+                throw new Error("Already has a local variable '"+varName+"'");
+              }
               funcLocalVars.set(varName, {varType: localVarType, value: lvarValue});
             }
 
@@ -421,5 +459,7 @@ export function traverse(c : TreeCursor, s : string) : Array<Stmt> {
 }
 export function parse(source : string) : Array<Stmt> {
   const t = parser.parse(source);
-  return traverse(t.cursor(), source);
+  let stmts:Array<Stmt> = traverse(t.cursor(), source);
+  let program:Program = organizeProgram(stmts);
+  return stmts;
 }

@@ -85,7 +85,7 @@ describe('traverseStmt(c, s) function', () => {
   });
 
   it("parses a function definition", () =>{
-    let source : string = "def f(x : int , y:int): \n"+
+    let source : string = "def f(x : int , y:int) -> int\n"+
                           " z:int = 10 \n"+
                           " y = y + 1 \n"+
                           " return x + y \n";
@@ -107,5 +107,21 @@ describe('parse(source) function', () => {
     expect(parsed).to.deep.equal([{tag: "expr", expr: {tag: "Number", value: 987}}]);
   });  
 
+  it("parses a source file", () =>{
+    let source : string = "g:int = 0 \n"+
+                          "def f(x : int , y:int) -> int:\n"+
+                          " z:int = 10 \n"+
+                          " y = y + 1 \n"+
+                          " if y == 0: \n"+
+                          "    return g + 1 \n"+
+                          " elif y > 0:  \n"+
+                          "    return 50 \n"+
+                          " else:           \n"+
+                          "    g + 2      \n"+
+                          " return g  \n";
+
+    const parsed = parse(source);
+    console.log("--------------------STATEMENTS!!");
+  });
   // TODO: add additional tests here to ensure parse works as expected
 });

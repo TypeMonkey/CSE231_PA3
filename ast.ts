@@ -1,28 +1,151 @@
 
+export type Program = {
+  /*
+   Maps file variable names to their
+   respective variable declarations
+   */
+  fileVars: Map<string, VarDeclr>,
+
+  /*
+   Maps functions using their signature to their original
+   function definitions.
+
+   A function's signature is defined as the following string:
+   <func name>'(' <a function's parameter types, comma seperated> ')'
+
+   OR
+
+   <func name>'( )' //if the function has no parameters
+   */
+  fileFuncs: Map<string, FuncDef>,
+  topLevelStmts: Array<Stmt>
+}
+
+export type FuncDef = {
+  name : string,
+
+  /*
+  Maps parameters - using their names as keys - to their
+  respective TypeVariable.
+
+  We'll be using JavaScript's Map object
+  as it retains insertion order
+  */
+  params : Map<string, Type>,
+  retType : Type,
+
+  /* 
+  Maps local variables - using their names as keys - to their
+  respective VarDeclr.
+
+  We'll be using JavaScript's Map object
+  as it retains insertion order
+  */
+  varDefs : Map<string, VarDeclr>
+  bodyStms : Array<Stmt>
+}
+
+export type VarDeclr = {
+  varType : Type,
+  value : Expr
+}
+
+export enum Type{
+  Int = "int",
+  Bool = "bool",
+  None = "None" //Largely used internally by the compiler to
+       //show that a function has no declared return type
+}
+
 export type Stmt =
-  | { tag: "define", name: string, value: Expr }
+  | { tag: "assign", name: string, value: Expr }
+  | { tag: "cond", ifStatement: IfStatement}
+  | { tag: "whileloop", cond: Expr, body: Array<Stmt>}
+  | { tag: "pass" }
+  | { tag: "ret", expr: Expr }
   | { tag: "expr", expr: Expr }
+  | { tag: "funcdef", def: FuncDef}
+
+export type IfStatement = 
+{
+  condition? : Expr, //if condition expression is missing, 
+                     //this is an "else" block
+  body: Array<Stmt>,
+  alters: Array<IfStatement>
+}
 
 export type Expr =
-    { tag: "num", value: number }
+    Literal
   | { tag: "id", name: string }
+  | { tag: "uniexpr", op: UniOp, target: Expr }
   | { tag: "bopexpr", op : BinOp, left: Expr, right: Expr}
-  | { tag: "builtin1", name: string, arg0: Expr }
-  | { tag: "builtin2", name: string, arg0: Expr, arg1: Expr }
+  | { tag: "funccall", name: string, args: Array<Expr> }
+  | { tag: "nestedexpr", nested: Expr}
+
+export type Literal = 
+    { tag: "None" }
+  | { tag: "Boolean", value: boolean }
+  | { tag: "Number", value: number}
+
+/**
+ * Returns the proper string representation of
+ * an Expr for debugging purposes
+ * @param params - an Expr
+ */
+export function toString(param : Expr) : string {
+  switch(param.tag){
+    case "None": {
+      return "None";
+    }
+    case "Boolean" : {
+      return `${param.value}`;
+    }
+    case "Number" : {
+      return param.value.toString();
+    }
+    case "id" : {
+      return param.name;
+    }
+    case "uniexpr" : {
+      return param.op+" "+toString(param.target);
+    }
+    case "bopexpr" : {
+      return "( "+toString(param.left)+" "+param.op+" "+toString(param.right)+" )";
+    }
+    case "funccall" : {
+      let argRep : string = "";
+
+      param.args.forEach(element => {
+        argRep += toString(element)+" ,";
+      });
+
+      if(param.args.length > 0){
+        argRep = argRep.substring(0, argRep.length - 1);
+      }
+
+      return param.name+"("+argRep+")";
+    }
+  }
+}
 
 export enum BinOp{
   Add = "+", 
   Sub = "-",
-  Mul = "*"
+  Mul = "*",
+  Div = "//",
+  Mod = "%",
+  Equal = "==",
+  NEqual = "!=",
+  LEqual = "<=",
+  GEqual = ">=",
+  Less = "<",
+  Great = ">",
+  Is = "is"
 } 
 
-export enum BuiltIn1{
-  Print = "print",
-  Abs = "abs"
+export enum UniOp{
+  Sub = "-",
+  Not = "not"
 }
 
-export enum BuiltIn2{
-  Max = "max",
-  Min = "min",
-  Pow = "pow"
-}
+

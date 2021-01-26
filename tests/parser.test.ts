@@ -2,6 +2,7 @@ import * as mocha from 'mocha';
 import {expect} from 'chai';
 import { parser } from 'lezer-python';
 import { traverseExpr, traverseStmt, traverse, parse } from '../parser';
+import { BinOp, Expr, UniOp } from '../ast';
 
 // We write tests for each function in parser.ts here. Each function gets its 
 // own describe statement. Each it statement represents a single test. You
@@ -20,14 +21,80 @@ describe('traverseExpr(c, s) function', () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     // Note: we have to use deep equality when comparing objects
-    expect(parsedExpr).to.deep.equal({tag: "num", value: 987});
+    expect(parsedExpr).to.deep.equal({tag: "Number", value: 987});
   })
 
+  it('parses a number in a function call', () => {
+    const source = "func(10+90*2,-15,20)";
+    const cursor = parser.parse(source).cursor();
+
+    // go to statement
+    cursor.firstChild();
+    // go to expression
+    cursor.firstChild();
+
+    const parsedExpr = traverseExpr(cursor, source);
+
+    // Note: we have to use deep equality when comparing objects
+    let expected:Array<Expr> = [{
+                                  tag: "bopexpr", op: BinOp.Add, 
+                                  left: {tag : "Number", value: 10},
+                                  right: {
+                                            tag: "bopexpr", op: BinOp.Mul, 
+                                            left: {tag : "Number", value: 90},
+                                            right: {tag : "Number", value: 2}
+                                         }
+                                },
+                                {tag: "uniexpr", op: UniOp.Sub, target: {tag: "Number", value: 15}},
+                                {tag: "Number", value: 20}];
+
+    expect(parsedExpr).to.deep.equal({tag: "funccall", name: "func", args: expected});
+  })
   // TODO: add additional tests here to ensure traverseExpr works as expected
 });
 
 describe('traverseStmt(c, s) function', () => {
   // TODO: add tests here to ensure traverseStmt works as expected
+  it("parses an if statement", () =>{
+    let source : string = "if x == 0: \n"+
+                          " x         \n"+
+                          " pass     \n"+
+                          "elif x < 0:\n"+
+                          " z     \n"+
+                          " pass  \n"+
+                          "else: \n"+
+                          " y    \n"+
+                          " j    \n";
+    const cursor = parser.parse(source).cursor();
+    cursor.firstChild();
+
+    const result = traverseStmt(cursor, source);
+    console.log("--------------------STATEMENTS!!");
+  });
+
+  it("parses a while statement", () =>{
+    let source : string = "while i < 10: \n"+
+                          " i = i + 1 \n" + 
+                          " if i == 0: \n" +
+                          "   10       \n";
+    const cursor = parser.parse(source).cursor();
+    cursor.firstChild();
+
+    const result = traverseStmt(cursor, source);
+    console.log("--------------------STATEMENTS!!");
+  });
+
+  it("parses a function definition", () =>{
+    let source : string = "def f(x : int , y:int): \n"+
+                          " z:int = 10 \n"+
+                          " y = y + 1 \n"+
+                          " return x + y \n";
+    const cursor = parser.parse(source).cursor();
+    cursor.firstChild();
+
+    const result = traverseStmt(cursor, source);
+    console.log("--------------------STATEMENTS!!");
+  });
 });
 
 describe('traverse(c, s) function', () => {
@@ -37,7 +104,7 @@ describe('traverse(c, s) function', () => {
 describe('parse(source) function', () => {
   it('parse a number', () => {
     const parsed = parse("987");
-    expect(parsed).to.deep.equal([{tag: "expr", expr: {tag: "num", value: 987}}]);
+    expect(parsed).to.deep.equal([{tag: "expr", expr: {tag: "Number", value: 987}}]);
   });  
 
   // TODO: add additional tests here to ensure parse works as expected

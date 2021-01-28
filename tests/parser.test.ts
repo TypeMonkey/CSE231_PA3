@@ -113,12 +113,12 @@ describe('parse(source) function', () => {
                           " z:int = 10 \n"+
                           " y = y + 1 \n"+
                           " if y == 0: \n"+
-                          "    return g + 1 \n"+
+                          "    return f(1,0) \n"+
                           " elif y > 0:  \n"+
                           "    return 50 \n"+
                           " else:           \n"+
-                          "    g + 2      \n"+
-                          " return g  \n";
+                          "    return print(g + 2)      \n"+
+                          " g  \n";
 
     const parsed = parse(source);
     console.log("--------------------STATEMENTS!!");

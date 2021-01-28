@@ -22,7 +22,7 @@ export type Program = {
 }
 
 export type FuncDef = {
-  name : string,
+  identity : FuncIdentity,
 
   /*
   Maps parameters - using their names as keys - to their
@@ -32,7 +32,6 @@ export type FuncDef = {
   as it retains insertion order
   */
   params : Map<string, Type>,
-  retType : Type,
 
   /* 
   Maps local variables - using their names as keys - to their
@@ -50,11 +49,18 @@ export type VarDeclr = {
   value : Expr
 }
 
+export type FuncIdentity = {
+  name: string,
+  paramType: Array<Type>,
+  returnType?: Type;
+}
+
 export enum Type{
   Int = "int",
   Bool = "bool",
+  Object = "object", //a.k.a "any" . Used internally by our compiler
   None = "None" //Largely used internally by the compiler to
-       //show that a function has no declared return type
+                //show that a function has no declared return type
 }
 
 export type Stmt =
@@ -80,22 +86,22 @@ export type Expr =
   | { tag: "id", name: string }
   | { tag: "uniexpr", op: UniOp, target: Expr }
   | { tag: "bopexpr", op : BinOp, left: Expr, right: Expr}
-  | { tag: "funccall", name: string, args: Array<Expr> }
+  | { tag: "funccall", name: string, args: Array<Expr> , target?: FuncIdentity}
   | { tag: "nestedexpr", nested: Expr}
 
 export type Literal = 
     { tag: "None" }
   | { tag: "Boolean", value: boolean }
-  | { tag: "Number", value: number}
+  | { tag: "Number", value: bigint}
 
 /**
  * Returns the signature of a function
  * @param func - the function whose signature is to generate
  */
-export function funcSig(func : FuncDef) : string{
+export function funcSig(func : FuncIdentity) : string{
   let sig : string = func.name+"(";
 
-  Array.from(func.params.values()).forEach(value => sig += value+",");
+  Array.from(func.paramType.values()).forEach(value => sig += value+",");
 
   return sig+")";
 }
@@ -109,7 +115,7 @@ export function generateFuncSig(name: string, argTypes:Array<Type>) : string{
 
   argTypes.forEach(value => sig += value+",");
 
-  return sig;
+  return sig+")";
 }
 
 /**

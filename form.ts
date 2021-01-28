@@ -8,6 +8,7 @@ import {BinOp,
     FuncDef,
     Program,
     Type,
+    FuncIdentity,
     toString,
     funcSig,
     generateFuncSig,
@@ -35,9 +36,49 @@ function lookup(targetVar: string,
     return undefined;
 } 
 
+/**
+ * Looks up a vairable's type from a list of variable maps.
+ * If the varibale cannot be found, undefined is returned
+ */
+function flookup(fname: string, fpTypes: Array<Type>,
+                 funcMap: Map<string, FuncIdentity>) : FuncIdentity {
+    let fsig = generateFuncSig(fname, fpTypes);
+
+    if(funcMap.has(fsig)){
+        return funcMap.get(fsig);
+    }
+    else{
+        //account for None and object types
+        const ofSameName = Array.from(
+                             funcMap.entries()).filter(
+                                 x => x[1].name == fname && 
+                                      x[1].paramType.length == fpTypes.length);
+        
+        for(let [ _ , iden] of ofSameName){
+            let incompatabilityFound = false;
+
+            for(let i = 0; i < iden.paramType.length; i++){
+                const declaredType = iden.paramType[i];
+                const receivedType = fpTypes[i];
+
+                if(declaredType != Type.Object && declaredType != receivedType){
+                    incompatabilityFound = true;
+                    break;
+                }
+            }
+
+            if(!incompatabilityFound){
+                return iden;
+            }
+        }
+
+        return undefined;
+    }
+} 
+
 export function checkExpr(expr: Expr,
     varMaps: Array<Map<string, Type>>,
-    funcMap: Map<string, Type>) : Type {
+    funcMap: Map<string, FuncIdentity>) : Type {
     
     switch(expr.tag){
         case "None" : return Type.None;
@@ -97,14 +138,15 @@ export function checkExpr(expr: Expr,
             }
 
             //now, create the function signature
-            const fSig = generateFuncSig(expr.name, argTypes);
+            const target = flookup(expr.name, argTypes, funcMap);
 
             //see if this signature exists within the function map
-            if(funcMap.has(fSig)){
-                return funcMap.get(fSig);
+            if(target !== undefined){
+                expr.target = target;
+                return target.returnType;
             }
 
-            throw new Error("Unfound function with signature "+fSig);
+            throw new Error("Unfound function with signature "+generateFuncSig(expr.name, argTypes));
         }
         case "nestedexpr": {
             return checkExpr(expr.nested, varMaps, funcMap);
@@ -114,7 +156,7 @@ export function checkExpr(expr: Expr,
 
 export function checkStatement(stmt: Stmt,
                                varMaps: Array<Map<string, Type>>,
-                               funcMap: Map<string, Type>,
+                               funcMap: Map<string, FuncIdentity>,
                                expectedType?: Type) : 
                                {isElse: boolean, resType: Type} {
     switch(stmt.tag){
@@ -222,7 +264,7 @@ export function checkStatement(stmt: Stmt,
 
 export function checkFunctionDef(funcDef: FuncDef,
     varMaps: Array<Map<string, Type>>,
-    funcMap: Map<string, Type>) {
+    funcMap: Map<string, FuncIdentity>) {
     
     //create a new variable map for this function.
     //Initialize it with function parameters
@@ -265,12 +307,12 @@ export function checkFunctionDef(funcDef: FuncDef,
             }
             */
             case "ret":{
-                returnType = checkStatement(funcState, newVarMaps, funcMap, funcDef.retType).resType;
+                returnType = checkStatement(funcState, newVarMaps, funcMap, funcDef.identity.returnType).resType;
             }
             default: {
-                const result = checkStatement(funcState, newVarMaps, funcMap, funcDef.retType);
+                const result = checkStatement(funcState, newVarMaps, funcMap, funcDef.identity.returnType);
                 elseEncoutnered = result.isElse;
-                if(elseEncoutnered && result.resType == funcDef.retType){
+                if(elseEncoutnered && result.resType == funcDef.identity.returnType){
                     returnType = result.resType;
                 }
 
@@ -280,25 +322,26 @@ export function checkFunctionDef(funcDef: FuncDef,
         }
     }
 
-    if(returnType !== funcDef.retType){
-        throw new Error("The function '"+funcSig(funcDef)+"' must have a return of '"+funcDef.retType+"' on all paths");
+    if(returnType !== funcDef.identity.returnType){
+        throw new Error("The function '"+funcSig(funcDef.identity)+"' must have a return of '"+funcDef.identity.returnType+"' on all paths");
     }
 }
 
-export function organizeProgram(stmts: Array<Stmt>) : Program {
+export function organizeProgram(stmts: Array<Stmt>, builtins: Map<string, FuncIdentity>) : Program {
     //organize functions and global variables
     let globalVars : Map<string, VarDeclr> = new Map;
     let globalFuncs : Map<string, FuncDef> = new Map;
     let topLevelStmts : Array<Stmt> = new Array;
 
     //these maps are for type checking
-    let fileFuncs : Map<string, Type> = new Map;
+    //we override builtin functions if a similar signature was declared
+    let fileFuncs : Map<string, FuncIdentity> = new Map(builtins);
 
     //now, organize the top level statements
     for (let stmt of stmts) {
         switch(stmt.tag){
             case "funcdef": {
-                let sig : string = funcSig(stmt.def);
+                let sig : string = funcSig(stmt.def.identity);
 
                 //check if function already exists
                 if(globalFuncs.has(sig)){
@@ -306,7 +349,7 @@ export function organizeProgram(stmts: Array<Stmt>) : Program {
                 }
                 else{
                     globalFuncs.set(sig, stmt.def);
-                    fileFuncs.set(sig, stmt.def.retType);
+                    fileFuncs.set(sig, stmt.def.identity);
                 }
                 break;
             }

@@ -9,6 +9,7 @@ import {BinOp,
         Stmt, 
         FuncDef,
         Program,
+        FuncIdentity,
         Type, 
         toString,
         VarDeclr} from "./ast";
@@ -19,7 +20,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
   //console.log("CURRENT TYPE: "+c.type.name+" | TARGET: "+s);
 
   switch(c.type.name) {
-    case "Number":        return {tag: "Number", value: Number(s.substring(c.from, c.to))};
+    case "Number":        return {tag: "Number", value: BigInt(s.substring(c.from, c.to))};
     case "Boolean":       return {tag: "Boolean", value: Boolean(s.substring(c.from, c.to).toLowerCase())};
     case "VariableName":  return {tag: "id", name: s.substring(c.from, c.to)};
     case "None":          return {tag: "None"};
@@ -309,9 +310,10 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       c.parent();
 
       return {tag: "funcdef", 
-              def: {name: funcName, 
+              def: {identity: {name: funcName, 
+                               paramType: Array.from(params.values()),  
+                               returnType: returnType}, 
                     params: params, 
-                    retType: returnType, 
                     varDefs: funcLocalVars, 
                     bodyStms: funcStates}};
     }
@@ -460,6 +462,16 @@ export function traverse(c : TreeCursor, s : string) : Array<Stmt> {
 export function parse(source : string) : Array<Stmt> {
   const t = parser.parse(source);
   let stmts:Array<Stmt> = traverse(t.cursor(), source);
-  let program:Program = organizeProgram(stmts);
+
+  //DEV NOTE: This line should be in compiler.ts. But we put it here to test parser
+  let builtins: Map<string, FuncIdentity> = new Map;
+  builtins.set("print(object,)", {name: "print", paramType: [Type.Object], returnType: Type.None});
+  builtins.set("abs(int,)", {name: "abs", paramType: [Type.Int], returnType: Type.Int});
+  builtins.set("max(int,int,)", {name: "max", paramType: [Type.Int, Type.Int], returnType: Type.Int});
+  builtins.set("min(int,int,)", {name: "min", paramType: [Type.Int, Type.Int], returnType: Type.Int});
+  builtins.set("pow(int,int,)", {name: "pow", paramType: [Type.Int, Type.Int], returnType: Type.Int});
+
+  let program: Program = organizeProgram(stmts, builtins);
+
   return stmts;
 }

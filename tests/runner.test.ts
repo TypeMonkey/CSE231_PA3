@@ -1,4 +1,3 @@
-import { run } from '../runner';
 import { expect } from 'chai';
 import 'mocha';
 

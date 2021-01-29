@@ -308,6 +308,7 @@ export function checkFunctionDef(funcDef: FuncDef,
             */
             case "ret":{
                 returnType = checkStatement(funcState, newVarMaps, funcMap, funcDef.identity.returnType).resType;
+                console.log(" --- RETURN ENCOUNTERED!!! "+returnType);
             }
             default: {
                 const result = checkStatement(funcState, newVarMaps, funcMap, funcDef.identity.returnType);
@@ -323,13 +324,16 @@ export function checkFunctionDef(funcDef: FuncDef,
     }
 
     if(returnType !== funcDef.identity.returnType){
+        console.log(" recent return type: "+returnType);
         throw new Error("The function '"+funcSig(funcDef.identity)+"' must have a return of '"+funcDef.identity.returnType+"' on all paths");
     }
 }
 
-export function organizeProgram(stmts: Array<Stmt>, builtins: Map<string, FuncIdentity>) : Program {
+export function organizeProgram(stmts: Array<Stmt>, 
+                                builtins: Map<string, FuncIdentity>,
+                                existingGVars: Map<string, VarDeclr> = new Map) : Program {
     //organize functions and global variables
-    let globalVars : Map<string, VarDeclr> = new Map;
+    let globalVars : Map<string, VarDeclr> = new Map(existingGVars);
     let globalFuncs : Map<string, FuncDef> = new Map;
     let topLevelStmts : Array<Stmt> = new Array;
 
@@ -344,7 +348,7 @@ export function organizeProgram(stmts: Array<Stmt>, builtins: Map<string, FuncId
                 let sig : string = funcSig(stmt.def.identity);
 
                 //check if function already exists
-                if(globalFuncs.has(sig)){
+                if(fileFuncs.has(sig)){
                     throw new Error("Already has function '"+sig+"'");
                 }
                 else{
@@ -387,6 +391,10 @@ export function organizeProgram(stmts: Array<Stmt>, builtins: Map<string, FuncId
     //check file functions
     for(let fdef of Array.from(globalFuncs.values())){
         checkFunctionDef(fdef, [fileVars], fileFuncs);
+    }
+
+    for(let stmt of topLevelStmts){
+        checkStatement(stmt, [fileVars], fileFuncs);
     }
 
     return {fileVars : globalVars, fileFuncs: globalFuncs, topLevelStmts: topLevelStmts};

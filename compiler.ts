@@ -5,6 +5,7 @@ import {BinOp,
   IfStatement, 
   Stmt, 
   FuncDef,
+  FuncIdentity,
   Program,
   Type, 
   toString,
@@ -14,20 +15,29 @@ import { BinaryInteger, concat, initialize, toBigInt } from "./binary";
 import { organizeProgram } from "./form";
 import { parse } from "./parser";
 
+// Numbers are offsets into global memory
+export type GlobalEnv = {
+  globals: Map<string, number>;
+  funcLabels: Map<string, string>;
+  offset: number;
+}
+
+export const emptyEnv = { globals: new Map(), offset: 0 };
+
 // https://learnxinyminutes.com/docs/wasm/
 
-type CompileResult = {
+export type CompileResult = {
   wasmSource: string,
+  globalIndices: GlobalEnv
 };
 
 export function compile(source: string) : CompileResult {
-  let builtins: Map<string, Type> = new Map;
-  builtins.set("print(int,)", Type.Int);
-  builtins.set("print(bool,)", Type.Bool);
-  builtins.set("abs(int,)", Type.Int);
-  builtins.set("max(int,int,)", Type.Int);
-  builtins.set("min(int,int,)", Type.Int);
-  builtins.set("pow(int,int,)", Type.Int);
+  let builtins: Map<string, FuncIdentity> = new Map;
+  builtins.set("print(object,)", {name: "print", paramType: [Type.Object], returnType: Type.None});
+  builtins.set("abs(int,)", {name: "abs", paramType: [Type.Int], returnType: Type.Int});
+  builtins.set("max(int,int,)", {name: "max", paramType: [Type.Int, Type.Int], returnType: Type.Int});
+  builtins.set("min(int,int,)", {name: "min", paramType: [Type.Int, Type.Int], returnType: Type.Int});
+  builtins.set("pow(int,int,)", {name: "pow", paramType: [Type.Int, Type.Int], returnType: Type.Int});
 
   let stmts: Array<Stmt> = parse(source);
   let program: Program = organizeProgram(stmts, builtins);
@@ -36,6 +46,11 @@ export function compile(source: string) : CompileResult {
   //as well as global variables to their indices
   let funcLabels: Map<string, string> = new Map;
   let globalVars: Map<string, number> = new Map;
+
+  //add builtins
+  for(let x of Array.from(builtins.values())){
+    funcLabels.set(x.name, x.name);
+  }
 
   //wasm function name scheme we'll use:
   // - just their function name, if unique
@@ -54,7 +69,7 @@ export function compile(source: string) : CompileResult {
       funcLabelNum.set(fname, 0);
     }
 
-    //set functio  name. If id is 0, don't event append it
+    //set function  name. If id is 0, don't event append it
     funcLabels.set(sig, fname+(id === 0 ? "" : id));
   }
 
@@ -62,8 +77,28 @@ export function compile(source: string) : CompileResult {
   let index = 0;
   Array.from(program.fileVars.keys()).forEach(e => {
     globalVars.set(e, index);
-    index += 4;  //since we're 32 bits
+    index += 8;  //since we're 32 bits
   });
+
+  //put top level statements in a dummy function
+  //called "_start_"
+  let toplevelInstrs: Array<string> = [];
+  for(let topLvlStmt of program.topLevelStmts){
+    let tlinstrs = codeGenStmt(topLvlStmt, funcLabels, [globalVars]);
+    tlinstrs = tlinstrs.concat(["(drop)"]);
+    toplevelInstrs = toplevelInstrs.concat(tlinstrs);
+  }
+
+  let startFunc : string = `(func $_start_ (export "_start_") ${toplevelInstrs.join("\n")} )`;
+
+  //now compile all functions
+  let allFuncInstrs : Array<string> = new Array;
+  for(let fdef of Array.from(program.fileFuncs.values())){
+    const funcInstr = codeGenFunction(fdef, funcLabels, [globalVars]);
+    allFuncInstrs = allFuncInstrs.concat(funcInstr);
+  }
+
+  let wholeModule : string = `${startFunc} ${allFuncInstrs.join("\n")}`;
 
   /*
   const definedVars = new Set();
@@ -87,6 +122,8 @@ export function compile(source: string) : CompileResult {
     wasmSource: commands.join("\n"),
   };
   */
+
+  return {wasmSource: wholeModule, globalIndices: {globals: globalVars, funcLabels: funcLabels, offset: undefined}};
 }
 
 function codeGenFunction(funcDef: FuncDef, 
@@ -104,7 +141,9 @@ function codeGenFunction(funcDef: FuncDef,
   let returnType : string = funcDef.identity.returnType !== Type.None ? "(result i32)" : "";
 
   //now put it all together
-  let funcHeader : string = `(func $${funcLabels.get(funcSig(funcDef.identity))} ${paramHeader} ${returnType}`;
+  let funcHeader : string = `(func $${funcLabels.get(funcSig(funcDef.identity))} 
+                             (export "${funcLabels.get(funcSig(funcDef.identity))}") 
+                             ${paramHeader} ${returnType}`;
   instrs.push(funcHeader);
 
   //compile local variables
@@ -118,6 +157,7 @@ function codeGenFunction(funcDef: FuncDef,
 
   //compile statements
   for(let fStmt of funcDef.bodyStms){
+    console.log("FOR FUNC: "+funcSig(funcDef.identity)+"******");
     instrs = instrs.concat(codeGenStmt(fStmt, funcLabels, vars));
   }
 
@@ -128,14 +168,31 @@ function codeGenFunction(funcDef: FuncDef,
 export function codeGenStmt(stmt: Stmt, 
                      funcLabels: Map<string, string>, 
                      vars: Array<Map<string, number>>) : Array<string> {
-  switch(stmt.tag) {
-    case "funcdef":
+  switch(stmt.tag){
+    case "funcdef":{
       //this shouldn't trigger as functions are toplevel
       break;
-    case "vardec":
+    }
+    case "vardec" :{
       //this shouldn't trigger as vardecs are toplevel
       break;
-    case "cond": {
+    }
+    case "ret":{
+      return codeGenExpr(stmt.expr, funcLabels, vars);
+    }
+    case "whileloop": {
+      let condInstr = codeGenExpr(stmt.cond, funcLabels, vars);
+
+      let body = [];
+      for(let x of stmt.body){
+        body.push(codeGenStmt(x, funcLabels, vars));
+      }
+
+      let compBody = `(if (then (block (loop ${body.join()} ${condInstr.join()} (br_if 1)(br_if 0)(drop) ))) (else (nop)) )`;
+
+      return [compBody];
+    }
+    case "cond":{
       let condInstr = codeGenExpr(stmt.ifStatement.condition, funcLabels, vars);
 
       break;
@@ -144,25 +201,28 @@ export function codeGenStmt(stmt: Stmt,
       const valueInstrs = codeGenExpr(stmt.value, funcLabels, vars);
 
       let found : number = lookup(stmt.name, vars);
-      let store = found === -1 ? [`(local.set $${stmt.name})`] ? [`(store ${found})`];
+      let store = found === -1 ? [`(local.set $${stmt.name})`] : [`(i64.store ${found})`];
 
       return valueInstrs.concat(store);
     }
-    case "expr":
-      return codeGenExpr(stmt.expr, funcLabels, vars);
+    case "expr": {
+      return codeGenExpr(stmt.expr, funcLabels, vars).concat("(drop)");
       //return exprStmts.concat([`(local.set $$last)`]);
-  }
-
+    }
+  }                     
+            
   return [];
 }
 
 export function codeGenExpr(expr : Expr, 
                      funcLabels: Map<string, string>, 
                      vars: Array<Map<string, number>>) : Array<string> {
+  console.log("   -type: "+expr.tag);
+  console.log("--- expr: "+toString(expr));
   switch(expr.tag) {
     case "id": {
       let found : number = lookup(expr.name, vars);
-      return found === -1 ? [`(local.get $${expr.name})`] ? [`(load ${found})`];
+      return found === undefined ? [`(local.get $${expr.name})`] : [`(i64.load ${found})`]
     }
     case "nestedexpr": {
       return codeGenExpr(expr.nested, funcLabels, vars);

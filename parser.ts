@@ -138,6 +138,9 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 }
 
 export function traverseStmt(c : TreeCursor, s : string) : Stmt {
+
+  console.log("cur state?: "+c.node.type.name);
+
   switch(c.node.type.name) {
     case "AssignStatement": {
       console.log("**** ASSIGN? "+s.substring(c.from, c.to));

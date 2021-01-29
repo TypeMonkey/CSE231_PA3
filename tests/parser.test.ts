@@ -1,14 +1,19 @@
 import * as mocha from 'mocha';
+import {BasicREPL} from '../repl';
 import {expect} from 'chai';
 import { parser } from 'lezer-python';
 import { traverseExpr, traverseStmt, traverse, parse } from '../parser';
 import { BinOp, Expr, UniOp } from '../ast';
+import { compile } from '../compiler';
+import { organizeProgram } from '../form';
+
 
 // We write tests for each function in parser.ts here. Each function gets its 
 // own describe statement. Each it statement represents a single test. You
 // should write enough unit tests for each function until you are confident
 // the parser works as expected. 
 describe('traverseExpr(c, s) function', () => {
+  /*
   it('parses a number in the beginning', () => {
     const source = "987";
     const cursor = parser.parse(source).cursor();
@@ -21,7 +26,7 @@ describe('traverseExpr(c, s) function', () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     // Note: we have to use deep equality when comparing objects
-    expect(parsedExpr).to.deep.equal({tag: "Number", value: 987});
+    expect(parsedExpr).to.deep.equal({tag: "Number", value: 987n});
   })
 
   it('parses a number in a function call', () => {
@@ -38,15 +43,15 @@ describe('traverseExpr(c, s) function', () => {
     // Note: we have to use deep equality when comparing objects
     let expected:Array<Expr> = [{
                                   tag: "bopexpr", op: BinOp.Add, 
-                                  left: {tag : "Number", value: 10},
+                                  left: {tag : "Number", value: BigInt(10)},
                                   right: {
                                             tag: "bopexpr", op: BinOp.Mul, 
-                                            left: {tag : "Number", value: 90},
-                                            right: {tag : "Number", value: 2}
+                                            left: {tag : "Number", value: BigInt(90)},
+                                            right: {tag : "Number", value: BigInt(2)}
                                          }
                                 },
-                                {tag: "uniexpr", op: UniOp.Sub, target: {tag: "Number", value: 15}},
-                                {tag: "Number", value: 20}];
+                                {tag: "uniexpr", op: UniOp.Sub, target: {tag: "Number", value: BigInt(15)}},
+                                {tag: "Number", value: BigInt(20)}];
 
     expect(parsedExpr).to.deep.equal({tag: "funccall", name: "func", args: expected});
   })
@@ -104,7 +109,7 @@ describe('traverse(c, s) function', () => {
 describe('parse(source) function', () => {
   it('parse a number', () => {
     const parsed = parse("987");
-    expect(parsed).to.deep.equal([{tag: "expr", expr: {tag: "Number", value: 987}}]);
+    expect(parsed).to.deep.equal([{tag: "expr", expr: {tag: "Number", value: 987n}}]);
   });  
 
   it("parses a source file", () =>{
@@ -122,6 +127,26 @@ describe('parse(source) function', () => {
 
     const parsed = parse(source);
     console.log("--------------------STATEMENTS!!");
+  });
+*/
+  it("parses a def file", () =>{
+    let source : string = "def f(x : int) -> int:\n"+
+                          " while True: \n" +
+                          "   pass"
+                          " return x \n"+
+                          "f(0) \n";
+
+    const parsed = parse(source);
+    compile(source);
+
+    //var repl = new BasicREPL();
+    //let res = repl.compile(source);
+    //repl.init(res.program);
+    //console.log("------TEST RUNNING------");
+
+    //const x = repl.run(res.program);
+       
+    console.log("--------------------STATEMENTS!! ");
   });
   // TODO: add additional tests here to ensure parse works as expected
 });

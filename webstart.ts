@@ -31,7 +31,7 @@ function webStart() {
       }
     };
     const env = emptyEnv;
-    var repl = new BasicREPL(importObject);
+    var repl = new BasicREPL();
 
     function renderResult(result : any) : void {
       if(result === undefined) { console.log("skip"); return; }
@@ -48,8 +48,10 @@ function webStart() {
     }
 
     function setupRepl() {
-      document.getElementById("output").innerHTML = "";
+      document.getElementById("output").innerHTML = "hello world"; //remove hello world
+
       const replCodeElement = document.getElementById("next-code") as HTMLInputElement;
+      
       replCodeElement.addEventListener("keypress", (e) => {
         if(e.key === "Enter") {
           const output = document.createElement("div");
@@ -65,19 +67,52 @@ function webStart() {
           const source = replCodeElement.value;
           elt.value = source;
           replCodeElement.value = "";
-          repl.run(source).then((r) => { renderResult(r); console.log ("run finished") })
-              .catch((e) => { renderError(e); console.log("run failed", e) });;
+
+          try {
+            let res = repl.execRawState(source);
+            console.log(" ---> entry statement resulted in: "+res);
+          } catch (error) {
+            console.log("--ERROR: "+error);
+            renderError(error);
+          }
+          //repl.run(source).then((r) => { renderResult(r); console.log ("run finished") })
+           //   .catch((e) => { renderError(e); console.log("run failed", e) });;
         }
       });
     }
 
 
     document.getElementById("run").addEventListener("click", function(e) {
-      repl = new BasicREPL(importObject);
-      const source = document.getElementById("user-code") as HTMLTextAreaElement;
+      //repl = new BasicREPL(importObject);
+      const source : string = (document.getElementById("user-code") as HTMLTextAreaElement).value;
+
       setupRepl();
-      repl.run(source.value).then((r) => { renderResult(r); console.log ("run finished") })
+      //let res = repl.compile(source);
+      let res = repl.compile(source);
+
+      //check if error occured during compilation
+      if(res.err == undefined){
+        console.log("------running------");
+        repl.init(res.program);
+        try {
+          const x = repl.run(res.program);
+          renderResult(x);
+        } catch (error) {
+          console.log("---run failed! ", error);
+          renderError(error);
+        }
+      }
+      else{
+        renderError(res.err);
+        console.log("compiled failed", res.err.stack);
+      }
+
+
+      /*
+      repl.run(source).then((r) => 
+         { renderResult(r); console.log ("run finished") })
           .catch((e) => { renderError(e); console.log("run failed", e) });;
+          */
     });
   });
 }

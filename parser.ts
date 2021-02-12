@@ -1,18 +1,19 @@
 import {parser} from "lezer-python";
-import {TreeCursor} from "lezer-tree";
+import {stringInput, TreeCursor} from "lezer-tree";
 import { Stats } from "mocha";
 import {BinOp, 
         UniOp, 
         Expr, 
         Literal, 
-        IfStatement, 
         Stmt, 
         FuncDef,
         Program,
         FuncIdentity,
-        Type, 
+        NativeTypes, 
         toString,
-        VarDeclr} from "./ast";
+        VarDeclr,
+        Type,
+        identityToFSig} from "./ast";
 import { organizeProgram } from "./form";
 
 export function traverseExpr(c : TreeCursor, s : string) : Expr {
@@ -85,12 +86,25 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       c.parent();
       return { tag: "nestedexpr", nested : nestedExpr};
     }
+    case "MemberExpression":{
+      c.firstChild(); //goes into dereferemce, starting at the target of the dereference
+
+      let targetExpr : Expr = traverseExpr(c, s); //parse the target
+
+      c.nextSibling(); //skip over the dot "."
+      c.nextSibling(); //goes to the name of the attribute
+
+      let attrName : string = s.substring(c.to, c.from);
+
+      c.parent(); //goes back to parent
+      return {tag: "attrderef", target: targetExpr, attrName: attrName};
+    }
     case "CallExpression": {
       console.log(" ==> In CallExpression");
       c.firstChild();
       console.log("    * first child: "+c.type.name);
 
-      let callName : string = s.substring(c.from, c.to);
+      let callTarget : Expr = traverseExpr(c, s);
       c.nextSibling(); // go to arglist
       //console.log("    * next sib: "+c.type.name);
 
@@ -129,7 +143,14 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       c.parent(); // pop arglist
       c.parent(); // pop CallExpression
 
-      return {tag: "funccall", name : callName, args: callArgs}; 
+      if(callTarget.tag === "attrderef"){
+        return {tag: "methodderef", target: callTarget.target, name: callTarget.attrName, args: callArgs};
+      }
+      else if(callTarget.tag === "id"){
+        return {tag: "funccall", name : callTarget.name, args: callArgs}; 
+      }
+
+      throw new Error("Unknown target of call: "+callTarget.tag);
     }
     default:
       //DEV NOTE: This is problematic but fixes a lot of problems
@@ -142,6 +163,43 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
   console.log("cur state?: "+c.node.type.name);
 
   switch(c.node.type.name) {
+    case "ClassDefinition":{
+      c.firstChild();
+
+      c.nextSibling(); //skips over "class" keyword
+      const className : string = s.substring(c.from, c.to);
+      c.nextSibling(); //moves on from the class name to the arg list
+      c.nextSibling(); //skips over the parent arg list. 
+
+      c.firstChild(); //goes into the class body, landing at the colon ":"
+      c.nextSibling(); //goes to the first class component 
+
+      let methods : Map<string, FuncDef> = new Map;
+      let variables : Map<string, VarDeclr> = new Map;
+
+      do{
+        let classComponent : Stmt = traverseStmt(c, s);
+
+        if(classComponent.tag === "funcdef"){
+          if(methods.has(identityToFSig(classComponent.def.identity))){
+            throw new Error(`The class ${className} already has a function ${identityToFSig(classComponent.def.identity)}`);
+          }
+          methods.set(identityToFSig(classComponent.def.identity), classComponent.def);
+        }
+        else if(classComponent.tag === "vardec"){
+          if(variables.has(classComponent.name)){
+            throw new Error(`The class ${className} already has an attribute ${classComponent.name}`);
+          }
+          variables.set(classComponent.name, classComponent.info);
+        }
+      } while(c.nextSibling())
+
+      c.parent();
+
+      c.parent();
+
+      return {tag: "classdef", def: {name: className, classVars: variables, methods: methods}};
+    }
     case "AssignStatement": {
       console.log("**** ASSIGN? "+s.substring(c.from, c.to));
 
@@ -157,9 +215,9 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
         c.nextSibling(); //goes to type name
         const lvarTypeName = s.substring(c.from, c.to);
         switch(lvarTypeName){
-          case Type.Int : {localVarType = Type.Int; break;}
-          case Type.Bool : {localVarType = Type.Bool; break;}
-          default: throw new Error("Unknown type '"+lvarTypeName+"'");
+          case NativeTypes.Int : {localVarType = {tag: "number"}; break;}
+          case NativeTypes.Bool : {localVarType = {tag: "bool"}; break;}
+          default: {localVarType = {tag: "class", name: lvarTypeName}};
         }
 
         c.parent();
@@ -169,7 +227,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       }
 
       c.nextSibling(); //value of the variable 
-      let lvarValue : Expr = traverseExpr(c,s);
+      let lvarValue : Literal = traverseExpr(c,s) as Literal;
       c.parent();
       console.log("******END OF VAR '"+varName+"'");
 
@@ -216,9 +274,9 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
             expectName = true;
 
             switch(tempParamType){
-              case Type.Int : {params.set(tempParamName, Type.Int); break;}
-              case Type.Bool : {params.set(tempParamName, Type.Bool); break;}
-              default: throw new Error("Unknown type '"+tempParamType+"'");
+              case NativeTypes.Int : {params.set(tempParamName, {tag: "number"}); break;}
+              case NativeTypes.Bool : {params.set(tempParamName, {tag: "bool"}); break;}
+              default: {params.set(tempParamName, {tag: "bool"});};
             }
 
             c.parent();
@@ -229,16 +287,16 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       c.parent();  //go back to parent, from ParamList
 
       c.nextSibling(); //next node should either be a TypeDef or Body
-      let returnType : Type = Type.None;
+      let returnType : Type = {tag: "none"};
       if(c.node.type.name as string === "TypeDef"){
         c.firstChild(); //lands on arrow
         c.nextSibling(); //goes to actual type
 
         let rawReturnType: string = s.substring(c.from, c.to);
         switch(rawReturnType){
-          case Type.Int : {returnType = Type.Int; break;}
-          case Type.Bool : {returnType = Type.Bool; break;}
-          default: throw new Error("Unknown type '"+rawReturnType+"'");
+          case NativeTypes.Int : {returnType = {tag: "number"}; break;}
+          case NativeTypes.Bool : {returnType = {tag: "bool"}; break;}
+          default: {returnType = {tag: "class", name: rawReturnType}}
         }
         c.parent();
         c.nextSibling(); //goes to function body
@@ -273,9 +331,9 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
               c.nextSibling(); //goes to type name
               const lvarTypeName = s.substring(c.from, c.to);
               switch(lvarTypeName){
-                case Type.Int : {localVarType = Type.Int; break;}
-                case Type.Bool : {localVarType = Type.Bool; break;}
-                default: throw new Error("Unknown type '"+lvarTypeName+"'");
+                case NativeTypes.Int : {localVarType = {tag: "number"}; break;}
+                case NativeTypes.Bool : {localVarType = {tag: "bool"}; break;}
+                default: {localVarType = {tag: "class", name: lvarTypeName}};
               }
 
               c.parent();
@@ -285,7 +343,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
             }
 
             c.nextSibling(); //value of the variable 
-            let lvarValue : Expr = traverseExpr(c,s);
+            let lvarValue : Literal =  traverseExpr(c,s) as Literal;
 
             if(localVarType === undefined){
               funcStates.push({tag: "assign", name: varName, value : lvarValue});
@@ -320,28 +378,6 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
                     varDefs: funcLocalVars, 
                     bodyStms: funcStates}};
     }
-    case "WhileStatement": {
-      c.firstChild(); //goes to "if" keyword
-      console.log("!!!!WHILE STATEMENT!!!!-------"+s.substring(c.from, c.to));
-
-      c.nextSibling(); //goes to condition expression
-      console.log("WHILE COND:    |"+s.substring(c.from, c.to));
-      let whileCond : Expr = traverseExpr(c, s);
-      
-      c.nextSibling(); //goes to the body
-      
-      c.firstChild(); //goes to the starting colon of the body
-      let whileBody : Array<Stmt> = new Array;
-      while (c.nextSibling()) {
-        console.log("--WHILE STATE BODY: "+s.substring(c.from, c.to)+" type: "+c.node.type.name);
-        whileBody.push(traverseStmt(c, s));
-      }
-      c.parent(); //go back to parent if-statement
-
-      c.parent();
-
-      return {tag: "whileloop", cond : whileCond, body: whileBody};
-    }
     case "IfStatement": {
       c.firstChild(); //goes to "if" keyword
       console.log("!!!!IF STATEMENT!!!!-------"+s.substring(c.from, c.to));
@@ -360,7 +396,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       }
       c.parent(); //go back to parent if-statement
 
-      let alternates : Array<IfStatement> = new Array;
+      let elseBody : Array<Stmt> = new Array;
       while(c.nextSibling()){
         console.log("***IF TOP LEVEL: "+c.node.type.name);
         /*
@@ -369,28 +405,6 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
          */
         switch(c.node.type.name as string){  
           case "elif": {
-            console.log("  --CONFIRMED: "+s.substring(c.from, c.to));
-
-            c.nextSibling(); //go to conditional expression
-            let elifCondition : Expr = traverseExpr(c, s);
-            console.log("   ---elif next sibling: "+s.substring(c.from, c.to));
-
-            c.nextSibling(); //go to body
-            console.log("   ---elif next next sibling: "+s.substring(c.from, c.to));
-
-            c.firstChild(); //get first statement in body
-            c.nextSibling(); //skip over colon
-            console.log("   ---elif first child: "+s.substring(c.from, c.to));
-
-            let elifBody : Array<Stmt> = [traverseStmt(c,s)];
-            while (c.nextSibling()) {
-              console.log("    ***ELIF STATEMENT:  "+s.substring(c.from, c.to));
-              elifBody.push(traverseStmt(c,s));
-            }
-
-            c.parent();
-
-            alternates.push({condition: elifCondition, body: elifBody, alters: new Array});
             break;
           }
           case "else": {
@@ -403,15 +417,13 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
             c.nextSibling(); //skip over colon
             console.log("   ---else first child: "+s.substring(c.from, c.to));
 
-            let elifBody : Array<Stmt> = [traverseStmt(c,s)];
             while (c.nextSibling()) {
               console.log("    ***ELSE STATEMENT:  "+s.substring(c.from, c.to));
-              elifBody.push(traverseStmt(c,s));
+              elseBody.push(traverseStmt(c,s));
             }
 
             c.parent();
 
-            alternates.push({condition: undefined, body: elifBody, alters: new Array});
             break;
           }       
         }
@@ -420,10 +432,10 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       //console.log("ELIF?    |"+s.substring(c.from, c.to));
 
       c.parent(); //go back to parent
-      return {tag: "cond", 
-              ifStatement: {condition : firstIfCond, 
-                            body : firstIfBody, 
-                            alters : alternates}};
+      return {tag: "ifstatement", 
+              cond: firstIfCond,
+              trueBranch: firstIfBody,
+              falseBranch: elseBody};
     }
     case "ReturnStatement": {
       c.firstChild();  //enter node and land on the return keyword
@@ -465,16 +477,5 @@ export function traverse(c : TreeCursor, s : string) : Array<Stmt> {
 export function parse(source : string) : Array<Stmt> {
   const t = parser.parse(source);
   let stmts:Array<Stmt> = traverse(t.cursor(), source);
-
-  //DEV NOTE: This line should be in compiler.ts. But we put it here to test parser
-  let builtins: Map<string, FuncIdentity> = new Map;
-  builtins.set("print(object,)", {name: "print", paramType: [Type.Object], returnType: Type.None});
-  builtins.set("abs(int,)", {name: "abs", paramType: [Type.Int], returnType: Type.Int});
-  builtins.set("max(int,int,)", {name: "max", paramType: [Type.Int, Type.Int], returnType: Type.Int});
-  builtins.set("min(int,int,)", {name: "min", paramType: [Type.Int, Type.Int], returnType: Type.Int});
-  builtins.set("pow(int,int,)", {name: "pow", paramType: [Type.Int, Type.Int], returnType: Type.Int});
-
-  let program: Program = organizeProgram(stmts, builtins);
-
   return stmts;
 }

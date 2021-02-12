@@ -10,8 +10,8 @@ const builtins : Map<string, Callable> = new Map;
 builtins.set("print(object,)", 
  {tag: "built-in", 
   iden: {name: "print", paramType: [Type.Object], returnType: Type.None},
-  func: (o: any) => {
-    console.log(o);
+  func: (o: object) => {
+    console.log(String(o));
     return 0n;
 }});
 
@@ -41,49 +41,57 @@ func: (a: bigint, b: bigint) => {
 }});
 
 export class BasicREPL {
-  currentEnv: ProgramStore
+  currentStore: ProgramStore;
+  currentEnv: { curGlobalVars: Map<string, Type>, curFuncs: Map<string, FuncIdentity>};
   //importObject: any
   //memory: any
 
   
   constructor() {
-    this.currentEnv = {globalVars: new Map, functions: new Map(builtins)};
+    this.currentStore = {globalVars: new Map, functions: new Map(builtins)};
+    this.currentEnv = {curGlobalVars: new Map, curFuncs: new Map};
   }
 
   init(program: Program){
 
     for(let [name, val] of Array.from(program.fileVars.entries())){
-      this.currentEnv.globalVars.set(name, executeExpr(val.value, 
-                                                       this.currentEnv, 
-                                                       [this.currentEnv.globalVars]));
+      this.currentStore.globalVars.set(name, executeExpr(val.value, 
+                                                       this.currentStore, 
+                                                       [this.currentStore.globalVars]));
+      this.currentEnv.curGlobalVars.set(name, val.varType);
     }
 
     for(let [sig, def] of Array.from(program.fileFuncs.entries())){
-      this.currentEnv.functions.set(sig, {tag: "source", code: def});
+      this.currentStore.functions.set(sig, {tag: "source", code: def});
+      this.currentEnv.curFuncs.set(sig, def.identity);
     }
   }
 
   addFunction(fdef: FuncDef){
     const sig = funcSig(fdef.identity);
-    if(this.currentEnv.functions.has(sig)){
+    if(this.currentStore.functions.has(sig)){
       throw new Error("There's already a function '"+sig+"'");
     }
 
-    this.currentEnv.functions.set(sig, {tag: "source", code: fdef});
+    this.currentStore.functions.set(sig, {tag: "source", code: fdef});
+    this.currentEnv.curFuncs.set(sig, fdef.identity);
   }
 
   addGlobal(varName: string, typeValue: VarDeclr) : bigint{
-    if(this.currentEnv.globalVars.has(varName)){
+    if(this.currentStore.globalVars.has(varName)){
       throw new Error("There's already a global variable '"+varName+"'");
     }
 
-    this.currentEnv.globalVars.set(varName, executeExpr(typeValue.value, 
-                                                        this.currentEnv, 
-                                                        [this.currentEnv.globalVars]));
-    return this.currentEnv.globalVars.get(varName);
+    this.currentStore.globalVars.set(varName, executeExpr(typeValue.value, 
+                                                        this.currentStore, 
+                                                        [this.currentStore.globalVars]));
+    this.currentEnv.curGlobalVars.set(varName, typeValue.varType);
+    return this.currentStore.globalVars.get(varName);
   }
 
   execState(stmt: Stmt) : bigint{
+    //console.log("GIVEN: "+Array.from(this.currentEnv.curFuncs.keys()).join());
+    checkStatement(stmt, [this.currentEnv.curGlobalVars], this.currentEnv.curFuncs);
     if(stmt.tag === "funcdef"){
       this.addFunction(stmt.def);
       return undefined;
@@ -92,15 +100,18 @@ export class BasicREPL {
       return this.addGlobal(stmt.name, stmt.info);
     }
     else{
-      return executeStmt(stmt, this.currentEnv, [this.currentEnv.globalVars]).value;
+      return executeStmt(stmt, this.currentStore, [this.currentStore.globalVars]).value;
     }
   }
 
   execRawState(source: string) : bigint{
+    //console.log("parsing!!!!  "+source);
     let rawStates = parse(source);
+    //console.log("----------GIVEN STATES: "+rawStates.join());
 
     let latest : bigint = undefined;
     for(let s of rawStates){
+      //console.log("----------------------STATE EX");
       latest = this.execState(s);
     }
 
@@ -141,7 +152,7 @@ export class BasicREPL {
   }
 
   run(program: Program) : bigint{
-    return executeProgram(program, this.currentEnv);
+    return executeProgram(program, this.currentStore);
   }
 
   /*

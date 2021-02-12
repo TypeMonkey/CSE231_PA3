@@ -61,7 +61,7 @@ export function concat(front: BinaryInteger, back: BinaryInteger) : BinaryIntege
             values: front.values.concat(back.values)};
 }
 
-
+/*
 let sample = 8;
 let encoded = initialize(8, BigInt(sample));
 //console.log(encoded.values.length);
@@ -75,3 +75,4 @@ console.log(toBigInt(encoded))
 place(initialize(2,BigInt(3)), encoded, 2);
 console.log(toBigInt(encoded).toString(10))
 console.log(encoded.values);
+*/

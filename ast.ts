@@ -6,18 +6,7 @@ export type Program = {
    */
   fileVars: Map<string, VarDeclr>,
 
-  /*
-   Maps functions using their signature to their original
-   function definitions.
-
-   A function's signature is defined as the following string:
-   <func name>'(' <a function's parameter types, comma seperated> ')'
-
-   OR
-
-   <func name>'( )' //if the function has no parameters
-   */
-  fileFuncs: Map<string, FuncDef>,
+  fileClasses: Map<string, ClassDef>
   topLevelStmts: Array<Stmt>
 }
 
@@ -44,42 +33,32 @@ export type FuncDef = {
   bodyStms : Array<Stmt>
 }
 
+export type ClassDef = {
+  name: string,
+  classVars: Map<string, VarDeclr>,
+  methods: Map<string, FuncDef>
+}
+
 export type VarDeclr = {
   varType : Type,
-  value : Expr
+  value : Literal
 }
 
 export type FuncIdentity = {
   name: string,
   paramType: Array<Type>,
-  returnType?: Type;
-}
-
-export enum Type{
-  Int = "int",
-  Bool = "bool",
-  Object = "object", //a.k.a "any" . Used internally by our compiler
-  None = "None" //Largely used internally by the compiler to
-                //show that a function has no declared return type
+  returnType: Type;
 }
 
 export type Stmt =
   | { tag: "assign", name: string, value: Expr }
   | { tag: "vardec", name: string, info: VarDeclr}
-  | { tag: "cond", ifStatement: IfStatement}
-  | { tag: "whileloop", cond: Expr, body: Array<Stmt>}
+  | { tag: "ifstatement", cond: Expr, trueBranch: Array<Stmt>, falseBranch: Array<Stmt>}
   | { tag: "pass" }
   | { tag: "ret", expr: Expr }
   | { tag: "expr", expr: Expr }
   | { tag: "funcdef", def: FuncDef}
-
-export type IfStatement = 
-{
-  condition? : Expr, //if condition expression is missing, 
-                     //this is an "else" block
-  body: Array<Stmt>,
-  alters: Array<IfStatement>
-}
+  | { tag: "classdef", def: ClassDef}
 
 export type Expr =
     Literal
@@ -87,6 +66,8 @@ export type Expr =
   | { tag: "uniexpr", op: UniOp, target: Expr }
   | { tag: "bopexpr", op : BinOp, left: Expr, right: Expr}
   | { tag: "funccall", name: string, args: Array<Expr> , target?: FuncIdentity}
+  | { tag: "attrderef", target: Expr, attrName: string}
+  | { tag: "methodderef", target: Expr, name: string, args: Array<Expr>}
   | { tag: "nestedexpr", nested: Expr}
 
 export type Literal = 
@@ -94,11 +75,51 @@ export type Literal =
   | { tag: "Boolean", value: boolean }
   | { tag: "Number", value: bigint}
 
+export type Type =
+  | {tag: "number"}
+  | {tag: "bool"}
+  | {tag: "none"}
+  | {tag: "class", name: string}
+
+export type Value =
+    { tag: "none" }
+  | { tag: "bool", value: boolean }
+  | { tag: "num", value: number }
+  | { tag: "object", name: string, address: number}
+
+export enum BinOp{
+  Add = "+", 
+  Sub = "-",
+  Mul = "*",
+  Div = "//",
+  Mod = "%",
+  Equal = "==",
+  NEqual = "!=",
+  LEqual = "<=",
+  GEqual = ">=",
+  Less = "<",
+  Great = ">",
+  Is = "is"
+} 
+  
+export enum UniOp{
+  Sub = "-",
+  Not = "not"
+}
+  
+export enum NativeTypes{
+  Int = "int",
+  Bool = "bool",
+  Object = "object", //a.k.a "any" . Used internally by our compiler
+  None = "None" //Largely used internally by the compiler to
+                //show that a function has no declared return type
+}
+
 /**
  * Returns the signature of a function
  * @param func - the function whose signature is to generate
  */
-export function funcSig(func : FuncIdentity) : string{
+export function identityToFSig(func : FuncIdentity) : string{
   let sig : string = func.name+"(";
 
   Array.from(func.paramType.values()).forEach(value => sig += value+",");
@@ -110,7 +131,7 @@ export function funcSig(func : FuncIdentity) : string{
  * Returns the signature of the function a function invocation is calling
  * @param func - the signature of the function a function invocation is calling
  */
-export function generateFuncSig(name: string, argTypes:Array<Type>) : string{
+export function funcCallToFSig(name: string, argTypes:Array<Type>) : string{
   let sig : string = name+"(";
 
   argTypes.forEach(value => sig += value+",");
@@ -143,6 +164,12 @@ export function toString(param : Expr) : string {
     case "bopexpr" : {
       return "( "+toString(param.left)+" "+param.op+" "+toString(param.right)+" )";
     }
+    case "attrderef": {
+      return toString(param.target)+" -> "+param.attrName;
+    }
+    case "methodderef": {
+      return toString(param.target) + " -> "+toString({tag : "funccall", args: param.args, name: param.name});
+    }
     case "funccall" : {
       let argRep : string = "";
 
@@ -158,25 +185,4 @@ export function toString(param : Expr) : string {
     }
   }
 }
-
-export enum BinOp{
-  Add = "+", 
-  Sub = "-",
-  Mul = "*",
-  Div = "//",
-  Mod = "%",
-  Equal = "==",
-  NEqual = "!=",
-  LEqual = "<=",
-  GEqual = ">=",
-  Less = "<",
-  Great = ">",
-  Is = "is"
-} 
-
-export enum UniOp{
-  Sub = "-",
-  Not = "not"
-}
-
 

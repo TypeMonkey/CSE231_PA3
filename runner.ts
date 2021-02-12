@@ -3,7 +3,7 @@
 // - https://github.com/AssemblyScript/wabt.js/
 // - https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
 
-import {FuncDef, FuncIdentity, funcSig, Stmt, Expr, UniOp, Program, BinOp} from "./ast"
+import {FuncDef, FuncIdentity, funcSig, Stmt, Expr, UniOp, Program, BinOp, IfStatement} from "./ast"
 //import wabt from 'wabt';
 //import * as compiler from './compiler';
 //import {parse} from './parser';
@@ -61,6 +61,32 @@ export function executeStmt(stmt: Stmt,
       return {value: undefined, isReturn: false};
     }
     case "cond":{
+      let ifStatement : IfStatement = stmt.ifStatement;
+      const cond = executeExpr(ifStatement.condition, progStore, varMap);
+
+      if(cond !== 0n){
+        for(let stmt of ifStatement.body){
+          const result = executeStmt(stmt, progStore, varMap);
+          if(result.isReturn){
+            return result;
+          }
+        }
+      }
+      else{
+        for(let alterStmt of ifStatement.alters){
+          if(alterStmt.condition === undefined || 
+             executeExpr(alterStmt.condition, progStore, varMap) !== 0n){
+            for(let elseStmt of alterStmt.body){
+              const result = executeStmt(elseStmt, progStore, varMap);
+              if(result.isReturn){
+                return result;
+              }
+            }
+            break;
+          }
+        }
+      }
+
       return {value: undefined, isReturn: false};
     }
     case "whileloop":{
@@ -70,7 +96,7 @@ export function executeStmt(stmt: Stmt,
       while(cond !== 0n){
         //execute statements
         for(let loopStmt of stmt.body){
-          let exec = executeStmt(stmt, progStore, varMap);
+          let exec = executeStmt(loopStmt, progStore, varMap);
           if(exec.isReturn){
             return exec;
           }
@@ -111,6 +137,7 @@ export function executeFunct(func: Callable,
 
       //execute statements
       for(let stmt of func.code.bodyStms){
+        console.log("-----> executing stmt "+stmt.tag);
         let exec = executeStmt(stmt, progStore, [localMap].concat(varMap));
         if(exec.isReturn){
           return exec.value;
@@ -159,6 +186,8 @@ export function executeExpr(expr: Expr,
       }
     }
     case "funccall" : {
+
+      //console.log("calling!!! "+expr.name);
 
       let args: Array<bigint> = [];
       for(let arg of expr.args){

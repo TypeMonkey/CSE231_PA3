@@ -54,7 +54,8 @@ function flookup(fname: string, fpTypes: Array<Type>,
                                  x => x[1].name == fname && 
                                       x[1].paramType.length == fpTypes.length);
         
-        for(let [ _ , iden] of ofSameName){
+        for(let [ x , iden] of ofSameName){
+            console.log("candidate: "+x);
             let incompatabilityFound = false;
 
             for(let i = 0; i < iden.paramType.length; i++){
@@ -137,8 +138,10 @@ export function checkExpr(expr: Expr,
                 argTypes.push(checkExpr(x, varMaps, funcMap));
             }
 
+            console.log("funccall!!! "+toString(expr)+" | "+Array.from(funcMap.keys()).join());
+
             //now, create the function signature
-            const target = flookup(expr.name, argTypes, funcMap);
+            const target = flookup(expr.name, argTypes, funcMap);           
 
             //see if this signature exists within the function map
             if(target !== undefined){

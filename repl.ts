@@ -6,6 +6,7 @@ import { parse } from "./parser";
 import { checkStatement, GlobalTable, organizeProgram } from "./tc";
 import { importObject } from "./tests/import-object.test";
 import { Runner } from "mocha";
+import { PyBool, PyInt, PyObj } from "./utils";
 
 /*
  Stores heap data and information, as well as global variables and functions
@@ -198,11 +199,23 @@ export class BasicREPL {
 
     const value = await run(instrs.join("\n"), importObject);
 
-    //console.log("-------POST EXECUTE.  VALUE: "+value.tag);
+    console.log("-------POST EXECUTE.  VALUE: "+value+" | "+program.topLevelStmts.length);
 
-    return value;
+    if(program.topLevelStmts.length === 0){
+      return {tag: "none"};
+    }
 
-    //return undefined;
+    const lastScriptStatement = program.topLevelStmts[program.topLevelStmts.length - 1];
+    if(lastScriptStatement.tag === "ret"){
+      //why ret? in typecheck, we converted all last expression statements as ret
+      switch(lastScriptStatement.expr.type.tag){
+        case "bool": return {tag: "bool", value: value === 0 ? false : true};
+        case "number": return {tag: "num", value: value};
+        case "none": return {tag: "none"};
+        case "class": return {tag: "object", name: this.store.memStore.heap[value].typeName, address: value};
+      }
+    }
+    return {tag: "none"};
   }    
 
   updateStores(program: Program){
@@ -260,9 +273,14 @@ export class BasicREPL {
   }       
 }
 
-/*
+
 //sample code!
-const repl = new BasicREPL(importObject);
-const input = fs.readFileSync("sample.txt","ascii");
-repl.run(input);
+/*
+async function main(){
+  const repl = new BasicREPL(importObject);
+  let v = await repl.run("True");
+  console.log("-----FIN "+v.tag);
+}
+
+main()
 */

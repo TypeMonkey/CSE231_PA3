@@ -23,7 +23,7 @@ if(typeof process !== "undefined") {
   };
 }
 
-export async function run(wasmsource : string, config: any) : Promise<Value> {
+export async function run(wasmsource : string, config: any) : Promise<number> {
   const wabtInterface = await wabt();
 
   //const importObject = config.importObject;
@@ -59,5 +59,5 @@ export async function run(wasmsource : string, config: any) : Promise<Value> {
   var wasmModule = await WebAssembly.instantiate(asBinary.buffer, config);
   const result = (wasmModule.instance.exports.exported_func as any)();
 
-  return PyValue(NUM, result);
+  return result;
 }

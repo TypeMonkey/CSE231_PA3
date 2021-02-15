@@ -17,7 +17,7 @@ function stringify(typ: Type, arg: any): string {
 function print(typ: Type, arg: any): any {
   importObject.output += stringify(typ, arg);
   importObject.output += "\n";
-  console.log("outtie "+stringify(typ, arg));  //DEV_NOTE: Mainly for debug purposes
+  //console.log("outtie "+stringify(typ, arg));  //DEV_NOTE: Mainly for debug purposes
   return arg;
 }
 

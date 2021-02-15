@@ -6,6 +6,12 @@ export type Program = {
    */
   fileVars: Map<string, VarDeclr>,
 
+  /**
+   * Maps functions to their
+   * function signatures
+   */
+  fileFunctions: Map<string, FuncDef>
+
   fileClasses: Map<string, ClassDef>
   topLevelStmts: Array<Stmt>
 }
@@ -35,23 +41,25 @@ export type FuncDef = {
 
 export type ClassDef = {
   name: string,
-  classVars: Map<string, VarDeclr>,
+  typeCode?: number,
+  classVars: Map<string, {index: number, varDec: VarDeclr}>,
   methods: Map<string, FuncDef>
 }
 
 export type VarDeclr = {
   varType : Type,
-  value : Literal
+  value : Expr
 }
 
 export type FuncIdentity = {
   name: string,
   paramType: Array<Type>,
-  returnType: Type;
+  returnType: Type
 }
 
 export type Stmt =
   | { tag: "assign", name: string, value: Expr }
+  | { tag: "attrassign", target: Expr, attr: string, value: Expr}
   | { tag: "vardec", name: string, info: VarDeclr}
   | { tag: "ifstatement", cond: Expr, trueBranch: Array<Stmt>, falseBranch: Array<Stmt>}
   | { tag: "pass" }
@@ -61,14 +69,14 @@ export type Stmt =
   | { tag: "classdef", def: ClassDef}
 
 export type Expr =
-    Literal
-  | { tag: "id", name: string }
-  | { tag: "uniexpr", op: UniOp, target: Expr }
-  | { tag: "bopexpr", op : BinOp, left: Expr, right: Expr}
-  | { tag: "funccall", name: string, args: Array<Expr> , target?: FuncIdentity}
-  | { tag: "attrderef", target: Expr, attrName: string}
-  | { tag: "methodderef", target: Expr, name: string, args: Array<Expr>}
-  | { tag: "nestedexpr", nested: Expr}
+  | { type?: Type, tag: "value", value: Literal}
+  | { type?: Type, tag: "id", name: string }
+  | { type?: Type, tag: "uniexpr", op: UniOp, target: Expr }
+  | { type?: Type, tag: "bopexpr", op : BinOp, left: Expr, right: Expr}
+  | { type?: Type, tag: "funccall", name: string, args: Array<Expr> , callee?: FuncIdentity, isConstructor?: boolean}
+  | { type?: Type, tag: "attrderef", target: Expr, attrName: string}
+  | { type?: Type, tag: "methodderef", target: Expr, name: string, args: Array<Expr>, callee?: FuncIdentity}
+  | { type?: Type, tag: "nestedexpr", nested: Expr}
 
 export type Literal = 
     { tag: "None" }
@@ -119,10 +127,10 @@ export enum NativeTypes{
  * Returns the signature of a function
  * @param func - the function whose signature is to generate
  */
-export function identityToFSig(func : FuncIdentity) : string{
+export function identityToFSig(func : FuncIdentity) : string {
   let sig : string = func.name+"(";
 
-  Array.from(func.paramType.values()).forEach(value => sig += value+",");
+  Array.from(func.paramType.values()).forEach(value => sig += typeToString(value)+",");
 
   return sig+")";
 }
@@ -131,12 +139,28 @@ export function identityToFSig(func : FuncIdentity) : string{
  * Returns the signature of the function a function invocation is calling
  * @param func - the signature of the function a function invocation is calling
  */
-export function funcCallToFSig(name: string, argTypes:Array<Type>) : string{
+export function funcCallToFSig(name: string, argTypes:Array<Type>) : string {
   let sig : string = name+"(";
 
-  argTypes.forEach(value => sig += value+",");
+  argTypes.forEach(value => sig += typeToString(value)+",");
 
   return sig+")";
+}
+
+/**
+ * Returns a label for a function that reflects that function uniquely. 
+ * @param func - the function whose label is to generate
+ */
+export function identityToLabel(func: FuncIdentity) : string {
+  let sig : string = func.name+"_";
+
+  Array.from(func.paramType.values()).forEach(value => sig += typeToString(value)+"_");
+
+  return sig;
+}
+
+export function typeToString(typ: Type) : string{
+  return typ.tag === "class" ? typ.name : typ.tag;
 }
 
 /**
@@ -146,14 +170,18 @@ export function funcCallToFSig(name: string, argTypes:Array<Type>) : string{
  */
 export function toString(param : Expr) : string {
   switch(param.tag){
-    case "None": {
-      return "None";
-    }
-    case "Boolean" : {
-      return `${param.value}`;
-    }
-    case "Number" : {
-      return param.value.toString();
+    case "value": {
+      switch(param.value.tag){
+        case "None": {
+          return "None";
+        }
+        case "Boolean" : {
+          return `${param.value}`;
+        }
+        case "Number" : {
+          return param.value.toString();
+        }
+      }
     }
     case "id" : {
       return param.name;

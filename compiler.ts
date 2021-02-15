@@ -2,7 +2,6 @@ import {BinOp,
   UniOp, 
   Expr, 
   Literal, 
-  IfStatement, 
   Stmt, 
   FuncDef,
   FuncIdentity,
@@ -10,11 +9,17 @@ import {BinOp,
   Type, 
   toString,
   VarDeclr,
-  funcSig} from "./ast";
+  typeToString,
+  identityToFSig,
+  ClassDef,
+  identityToLabel} from "./ast";
 import { BinaryInteger, concat, initialize, toBigInt } from "./binary";
-import { organizeProgram } from "./form";
+import { organizeProgram } from "./tc";
 import { parse } from "./parser";
+import { ProgramStore } from "./repl";
+import { stringInput } from "lezer-tree";
 
+/*
 // Numbers are offsets into global memory
 export type GlobalEnv = {
   globals: Map<string, number>;
@@ -30,105 +35,94 @@ export type CompileResult = {
   wasmSource: string,
   globalIndices: GlobalEnv
 };
+*/
 
-export function compile(source: string) : CompileResult {
-  let builtins: Map<string, FuncIdentity> = new Map;
-  builtins.set("print(object,)", {name: "print", paramType: [Type.Object], returnType: Type.None});
-  builtins.set("abs(int,)", {name: "abs", paramType: [Type.Int], returnType: Type.Int});
-  builtins.set("max(int,int,)", {name: "max", paramType: [Type.Int, Type.Int], returnType: Type.Int});
-  builtins.set("min(int,int,)", {name: "min", paramType: [Type.Int, Type.Int], returnType: Type.Int});
-  builtins.set("pow(int,int,)", {name: "pow", paramType: [Type.Int, Type.Int], returnType: Type.Int});
-
-  let stmts: Array<Stmt> = parse(source);
-  let program: Program = organizeProgram(stmts, builtins);
-
-  //map functions to their unqiue function names in wasm
-  //as well as global variables to their indices
-  let funcLabels: Map<string, string> = new Map;
-  let globalVars: Map<string, number> = new Map;
-
-  //add builtins
-  for(let x of Array.from(builtins.values())){
-    funcLabels.set(x.name, x.name);
-  }
-
-  //wasm function name scheme we'll use:
-  // - just their function name, if unique
-  // - their function name + the number of times this function name has been seen
-  let funcLabelNum: Map<string, number> = new Map;
-
-  for(let [sig, def] of Array.from(program.fileFuncs.entries())){
-    let fname = def.identity.name;
-    let id = 0; //to append to the end of function names
-
-    if(funcLabelNum.has(fname)){
-      id = funcLabelNum.get(fname) + 1;
-      funcLabelNum.set(fname, id);
+function convertLastStatement(stmts: Array<Stmt>){
+  if(stmts.length > 0){
+    const exprStmt = stmts[stmts.length - 1];
+    if(exprStmt.tag === "expr"){
+      stmts[stmts.length - 1] = {tag: "ret", expr: exprStmt.expr}
     }
-    else{
-      funcLabelNum.set(fname, 0);
+    else if(exprStmt.tag === "ifstatement"){
+      convertLastStatement(exprStmt.trueBranch);
+      convertLastStatement(exprStmt.falseBranch);
+    }
+  }
+}
+
+export function compile(program: Program, store: ProgramStore) : Array<string> {
+  let instrs : Array<string> = new Array;
+
+  //compile classes
+  for(let cdef of program.fileClasses.values()){
+    instrs = instrs.concat(codeGenClass(cdef, store));
+  }
+
+  //compile functions
+  for(let func of program.fileFunctions.values()){
+    instrs = instrs.concat(codeGenFunction(func, store));
+  }
+
+  //compile top-level statements and put them in exported_func
+  instrs.push(`(func $exported_func (export "exported_func") (result i32)`);
+
+  //before we actually compile statments, we're gonna "convert"
+  //the last exprstatement into a return statement
+  convertLastStatement(program.topLevelStmts);
+
+  for(let stmt of program.topLevelStmts){
+    instrs = instrs.concat(codeGenStmt(stmt, new Array, store));
+  }
+  instrs.push(")");
+
+  return instrs;
+}
+
+function codeGenClass(classDef: ClassDef, store: ProgramStore) : Array<string>{
+  let instrs : Array<string> = new Array;
+
+  for(let method of classDef.methods.values()){
+    //translate parameters to wasm
+    let paramHeader = "";
+    for(let [name, _] of Array.from(method.params.entries())){
+      paramHeader += `(param $${name} i32)`;
     }
 
-    //set function  name. If id is 0, don't event append it
-    funcLabels.set(sig, fname+(id === 0 ? "" : id));
-  }
+    //add function return type, if it's not None
+    const returnType = method.identity.returnType.tag !== "none" ? "(result i32)" : "";
 
-  //map global variables to indices
-  let index = 0;
-  Array.from(program.fileVars.keys()).forEach(e => {
-    globalVars.set(e, index);
-    index += 8;  //since we're 32 bits
-  });
+    const funcLabel = `${classDef.name}_${identityToLabel(method.identity)}`;
 
-  //put top level statements in a dummy function
-  //called "_start_"
-  let toplevelInstrs: Array<string> = [];
-  for(let topLvlStmt of program.topLevelStmts){
-    let tlinstrs = codeGenStmt(topLvlStmt, funcLabels, [globalVars]);
-    tlinstrs = tlinstrs.concat(["(drop)"]);
-    toplevelInstrs = toplevelInstrs.concat(tlinstrs);
-  }
+    //now put it all together
+    let funcHeader : string = `(func $${funcLabel} (export "${funcLabel}") ${paramHeader} ${returnType}`;
+    instrs.push(funcHeader);
 
-  let startFunc : string = `(func $_start_ (export "_start_") ${toplevelInstrs.join("\n")} )`;
+    //compile local variables
+    let localVars: Set<string> = new Set(method.params.keys());
+    //first add parameters to localVars
 
-  //now compile all functions
-  let allFuncInstrs : Array<string> = new Array;
-  for(let fdef of Array.from(program.fileFuncs.values())){
-    const funcInstr = codeGenFunction(fdef, funcLabels, [globalVars]);
-    allFuncInstrs = allFuncInstrs.concat(funcInstr);
-  }
+    for(let [name, info] of Array.from(method.varDefs.entries())){
+      const valueInstr = codeGenExpr(info.value, [localVars], store);
+      instrs = instrs.concat(valueInstr);
 
-  let wholeModule : string = `${startFunc} ${allFuncInstrs.join("\n")}`;
-
-  /*
-  const definedVars = new Set();
-  ast.forEach(s => {
-    switch(s.tag) {
-      case "define":
-        definedVars.add(s.name);
-        break;
+      instrs.push(`(local $${name} i32)`);
+      instrs.push(`(set_local $${name})`);
     }
-  }); 
-  const scratchVar : string = `(local $$last i32)`;
-  const localDefines = [scratchVar];
-  definedVars.forEach(v => {
-    localDefines.push(`(local $${v} i32)`);
-  })
-  
-  const commandGroups = ast.map((stmt) => codeGen(stmt));
-  const commands = localDefines.concat([].concat.apply([], commandGroups));
-  console.log("Generated: ", commands.join("\n"));
-  return {
-    wasmSource: commands.join("\n"),
-  };
-  */
 
-  return {wasmSource: wholeModule, globalIndices: {globals: globalVars, funcLabels: funcLabels, offset: undefined}};
+    //compile statements
+    for(let fStmt of method.bodyStms){
+      console.log("FOR FUNC: "+identityToFSig(method.identity)+"******");
+      instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
+    }
+
+    instrs.push(")");  //add concluding paranthesis
+  }
+
+  return instrs;
 }
 
 function codeGenFunction(funcDef: FuncDef, 
-                         funcLabels: Map<string, string>, 
-                         vars: Array<Map<string, number>>) : Array<string>{
+                         store: ProgramStore) : Array<string>{
   let instrs : Array<string> = new Array;
 
   //translate parameters to wasm
@@ -138,18 +132,20 @@ function codeGenFunction(funcDef: FuncDef,
   }
 
   //add function return type, if it's not None
-  let returnType : string = funcDef.identity.returnType !== Type.None ? "(result i32)" : "";
+  let returnType : string = funcDef.identity.returnType.tag !== "none" ? "(result i32)" : "";
 
   //now put it all together
-  let funcHeader : string = `(func $${funcLabels.get(funcSig(funcDef.identity))} 
-                             (export "${funcLabels.get(funcSig(funcDef.identity))}") 
+  let funcHeader : string = `(func $${store.memStore.fileFunctionLabels.get(identityToFSig(funcDef.identity))} 
+                             (export "${store.memStore.fileFunctionLabels.get(identityToFSig(funcDef.identity))}") 
                              ${paramHeader} ${returnType}`;
   instrs.push(funcHeader);
 
   //compile local variables
+  let localVars: Set<string> =  new Set(funcDef.params.keys());;
   for(let [name, info] of Array.from(funcDef.varDefs.entries())){
-    const valueInstr = codeGenExpr(info.value, funcLabels, vars);
+    const valueInstr = codeGenExpr(info.value, [localVars], store);
     instrs = instrs.concat(valueInstr);
+    localVars.add(name);
 
     instrs.push(`(local $${name} i32)`);
     instrs.push(`(set_local $${name})`);
@@ -157,8 +153,8 @@ function codeGenFunction(funcDef: FuncDef,
 
   //compile statements
   for(let fStmt of funcDef.bodyStms){
-    console.log("FOR FUNC: "+funcSig(funcDef.identity)+"******");
-    instrs = instrs.concat(codeGenStmt(fStmt, funcLabels, vars));
+    console.log("FOR FUNC: "+identityToFSig(funcDef.identity)+"******");
+    instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
   }
 
   instrs.push(")");  //add concluding paranthesis
@@ -166,8 +162,8 @@ function codeGenFunction(funcDef: FuncDef,
 }
 
 export function codeGenStmt(stmt: Stmt, 
-                     funcLabels: Map<string, string>, 
-                     vars: Array<Map<string, number>>) : Array<string> {
+                            localVars: Array<Set<string>>,
+                            store: ProgramStore) : Array<string> {
   switch(stmt.tag){
     case "funcdef":{
       //this shouldn't trigger as functions are toplevel
@@ -177,156 +173,180 @@ export function codeGenStmt(stmt: Stmt,
       //this shouldn't trigger as vardecs are toplevel
       break;
     }
-    case "ret":{
-      return codeGenExpr(stmt.expr, funcLabels, vars);
-    }
-    case "whileloop": {
-      let condInstr = codeGenExpr(stmt.cond, funcLabels, vars);
-
-      let body = [];
-      for(let x of stmt.body){
-        body.push(codeGenStmt(x, funcLabels, vars));
-      }
-
-      let compBody = `(if (then (block (loop ${body.join()} ${condInstr.join()} (br_if 1)(br_if 0)(drop) ))) (else (nop)) )`;
-
-      return [compBody];
-    }
-    case "cond":{
-      let condInstr = codeGenExpr(stmt.ifStatement.condition, funcLabels, vars);
-
+    case "classdef" :{
+      //this shouldn't trigger as classdefs are toplevel
       break;
     }
+    case "ret":{
+      return [codeGenExpr(stmt.expr, localVars, store)];
+    }
+    case "ifstatement":{
+      const condInstr = codeGenExpr(stmt.cond, localVars, store);
+      let instrs = [`(if (result i32) ${condInstr} `];
+
+      instrs.push("(then");
+      for(let thenStmt of stmt.trueBranch){
+        instrs = instrs.concat(codeGenStmt(thenStmt, localVars, store));
+      }
+      instrs.push(")");
+
+      instrs.push("(else");
+      for(let elseStmt of stmt.falseBranch){
+        instrs = instrs.concat(codeGenStmt(elseStmt, localVars, store));
+      }
+      instrs.push(")");
+
+      instrs.push(")");
+      return instrs;
+    }
+    case "attrassign": {
+      const attrAccess = codeGenExpr(stmt.target, localVars, store);
+
+      console.log("  ===> comp attraassign "+typeToString(stmt.target.type));
+
+      const attrClassDef = store.typeStore.classMap.get(typeToString(stmt.target.type));
+      const attrIndex = attrClassDef.classVars.get(stmt.attr).index;
+      const newValue = codeGenExpr(stmt.value, localVars, store);
+
+      return [`(call $3mute ${attrAccess} (i32.const ${attrIndex}) ${newValue})`];
+    }
     case "assign": {
-      const valueInstrs = codeGenExpr(stmt.value, funcLabels, vars);
+      const valueInstrs = codeGenExpr(stmt.value, localVars, store);
 
-      let found : number = lookup(stmt.name, vars);
-      let store = found === -1 ? [`(local.set $${stmt.name})`] : [`(i64.store ${found})`];
-
-      return valueInstrs.concat(store);
+      if(isLocalVar(localVars, stmt.name)){
+        return [`(local.set $${stmt.name} ${valueInstrs})`];
+      }
+      else{
+        const fileVarIndex = store.memStore.fileVarIndex.get(stmt.name);
+        return [`(call $5globst (i32.const ${fileVarIndex}) ${valueInstrs})`]
+      }
+    }
+    case "ret":{
+      return [codeGenExpr(stmt.expr, localVars, store)];
     }
     case "expr": {
-      return codeGenExpr(stmt.expr, funcLabels, vars).concat("(drop)");
-      //return exprStmts.concat([`(local.set $$last)`]);
+      return [codeGenExpr(stmt.expr, localVars, store)].concat("(drop)");
     }
   }                     
             
-  return [];
+  throw new Error("Unexpected stmt? "+stmt.tag);
 }
 
 export function codeGenExpr(expr : Expr, 
-                     funcLabels: Map<string, string>, 
-                     vars: Array<Map<string, number>>) : Array<string> {
+                            localVars: Array<Set<string>>,
+                            store: ProgramStore) : string {
   console.log("   -type: "+expr.tag);
   console.log("--- expr: "+toString(expr));
   switch(expr.tag) {
     case "id": {
-      let found : number = lookup(expr.name, vars);
-      return found === undefined ? [`(local.get $${expr.name})`] : [`(i64.load ${found})`]
+      let found : number = store.memStore.fileVarIndex.get(expr.name);
+      return isLocalVar(localVars, expr.name) ? 
+                  `(local.get $${expr.name})` : 
+                  `(call $4globret (i32.const ${found}))`;
     }
     case "nestedexpr": {
-      return codeGenExpr(expr.nested, funcLabels, vars);
+      return codeGenExpr(expr.nested, localVars, store);
     }
     case "uniexpr": {
-      let targetInstr : Array<string> = codeGenExpr(expr.target, funcLabels, vars);
+      let targetInstr : string = codeGenExpr(expr.target, localVars, store);
       
       switch(expr.op){
         case UniOp.Not: {
-          let prior = ["(i32.const 0)", "(i32.const 1)"];
-          targetInstr = prior.concat(targetInstr).concat(["(i32.wrap_i64)", "(select)"]);
-        };
+          targetInstr = `(select (i32.const 0) (i32.const 1) ${targetInstr})`;
+        }
         case UniOp.Sub:{
-          targetInstr = ["(i32.const 0)"].concat(targetInstr).concat(["(i32.wrap_i64)", "(i32.sub)"]);
+          targetInstr = `(i32.mul (i32.const -1) ${targetInstr})`;
         }
       }
       
       return targetInstr;
     }
     case "bopexpr": {
-      let leftInstr : Array<string> = codeGenExpr(expr.left, funcLabels, vars);
-      leftInstr.push("(i32.wrap_i64)");
-      let rightInstr : Array<string> = codeGenExpr(expr.right, funcLabels, vars);
-      leftInstr.push("(i32.wrap_i64)");
+      let leftInstr : string = codeGenExpr(expr.left, localVars, store);
+      //leftInstr.push("(i32.wrap_i64)");
+      let rightInstr : string = codeGenExpr(expr.right, localVars, store);
+      //leftInstr.push("(i32.wrap_i64)");
 
 
       switch (expr.op) {
-        case BinOp.Add: return leftInstr.concat(rightInstr, ["(i32.add)"]);
-        case BinOp.Sub: return leftInstr.concat(rightInstr, ["(i32.sub)"]);
-        case BinOp.Mul: return leftInstr.concat(rightInstr, ["(i32.mul)"]);
+        case BinOp.Add: return `(i32.add ${leftInstr} ${rightInstr})`;
+        case BinOp.Sub: return `(i32.sub ${leftInstr} ${rightInstr})`;
+        case BinOp.Mul: return `(i32.mul ${leftInstr} ${rightInstr})`;
 
-        case BinOp.Div: return leftInstr.concat(rightInstr, ["(i32.div_s)"]);
-        case BinOp.Mod: return leftInstr.concat(rightInstr, ["(i32.rem_s)"]);
+        case BinOp.Div: return `(i32.div_s ${leftInstr} ${rightInstr})`;
+        case BinOp.Mod: return `(i32.rem_s ${leftInstr} ${rightInstr})`;
 
-        case BinOp.Equal: return leftInstr.concat(rightInstr, ["(i32.eq)"]);
-        case BinOp.NEqual: return leftInstr.concat(rightInstr, ["(i32.ne)"]);
+        case BinOp.Equal: return `(i32.eq ${leftInstr} ${rightInstr})`;
+        case BinOp.NEqual: return `(i32.ne ${leftInstr} ${rightInstr})`;
 
-        case BinOp.LEqual: return leftInstr.concat(rightInstr, ["(i32.le)"]);
-        case BinOp.GEqual: return leftInstr.concat(rightInstr, ["(i32.ge)"]);
+        case BinOp.LEqual: return `(i32.le_s ${leftInstr} ${rightInstr})`;
+        case BinOp.GEqual: return `(i32.ge_s ${leftInstr} ${rightInstr})`;
 
-        case BinOp.Less: return leftInstr.concat(rightInstr, ["(i32.lt)"]);
-        case BinOp.Great: return leftInstr.concat(rightInstr, ["(i32.gt)"]);
+        case BinOp.Less: return `(i32.lt_s ${leftInstr} ${rightInstr})`;
+        case BinOp.Great: return `(i32.gt_s ${leftInstr} ${rightInstr})`;
 
         //since we only have bools and ints, "is" works the same as "==" at the moment
-        case BinOp.Is: return leftInstr.concat(rightInstr, ["(i32.eq)"]);
+        case BinOp.Is: return `(i32.eq ${leftInstr} ${rightInstr})`;
       }
 
     }
     case "funccall":{
-      let argInstrs: Array<string> = [];
+      console.log("----COMPILING FUNCCALL "+identityToFSig(expr.callee)+" | "+expr.isConstructor);
+
+      if(expr.isConstructor){
+        const targetClassDef = store.typeStore.classMap.get(expr.name);
+        return `(call $1nstanciate (i32.const ${targetClassDef.typeCode}))`;
+      }
+      else{
+        let argInstrs: string = "";
+
+        for(let arg of expr.args){
+          const argInstr = codeGenExpr(arg, localVars, store);
+          argInstrs += argInstr;
+        }
+  
+        const targetLabel = store.memStore.fileFunctionLabels.get(identityToFSig(expr.callee));
+        argInstrs = `(call $${targetLabel} ${argInstrs})`;
+  
+        return argInstrs;
+      }
+    }
+    case "methodderef": {
+      const targetInstr = codeGenExpr(expr.target, localVars, store);
+      const targetClassDef = store.typeStore.classMap.get(typeToString(expr.target.type));
+      const calleeIdentity = targetClassDef.methods.get(identityToFSig(expr.callee));
+
+      let argInstrs: string = "";
 
       for(let arg of expr.args){
-        const argInstr = codeGenExpr(arg, funcLabels, vars);
-        argInstrs.concat(argInstr)
+        const argInstr = codeGenExpr(arg, localVars, store);
+        argInstrs += argInstr;
       }
 
-      const targetLabel = funcLabels.get(funcSig(expr.target));
-      argInstrs = argInstrs.concat([`(call $${targetLabel})`]);
-
-      return argInstrs;
+      return `(call $${targetClassDef.name+"_"+identityToLabel(expr.callee)} ${targetInstr} ${argInstrs})`;
     }
-    case "Boolean":{
-      let tagSection : BinaryInteger = initialize(31, BigInt(2));
-      let metadata : BinaryInteger = initialize(1, BigInt(0));
-      metadata = concat(tagSection, metadata);
+    case "attrderef": {
+      const targetInstr = codeGenExpr(expr.target, localVars, store);
+      const targetClassDef = store.typeStore.classMap.get(typeToString(expr.target.type));
+      const attrIndex = targetClassDef.classVars.get(expr.attrName).index;
 
-      let booleanValue : BinaryInteger = initialize(32, expr.value ? 1n : 0n);
-      let whole : BinaryInteger = concat(metadata, booleanValue);
-
-      return ["(i64.const " + toBigInt(whole).toString(10) + ")"];
+      return `(call $2retr ${targetInstr} (i32.const ${attrIndex}))`;
     }
-    case "Number":{
-      let tagSection : BinaryInteger = initialize(31, BigInt(1));
-      let metadata : BinaryInteger = initialize(1, BigInt(0));
-      metadata = concat(tagSection, metadata);
-
-      let numericValue : BinaryInteger = initialize(32, expr.value);
-      let whole : BinaryInteger = concat(metadata, numericValue);
-
-      return ["(i64.const " + toBigInt(whole).toString(10) + ")"];
-    }
-    case "None":{
-      let tagSection : BinaryInteger = initialize(31, BigInt(0));
-      let metadata : BinaryInteger = initialize(1, BigInt(0));
-      metadata = concat(tagSection, metadata);
-
-      let noneValue : BinaryInteger = initialize(32, 0n);
-      let whole : BinaryInteger = concat(metadata, noneValue);
-
-      return ["(i64.const " + toBigInt(whole).toString(10) + ")"];
+    case "value":{
+      switch(expr.value.tag){
+        case "None": return "(i32.const 0)";
+        case "Number": return `(i32.const ${expr.value.value})`
+        case "Boolean": return `(i32.const ${expr.value.value ? 1 : 0})`
+      }
     }
   }
 }
 
- /**
- * Looks up a vairable's type from a list of variable maps.
- * If the varibale cannot be found, undefined is returned
- */
-function lookup(targetVar: string,
-                varMaps: Array<Map<string, number>>) : number {
-  for (let vmap of varMaps) {
-    if(vmap.has(targetVar)){
-      return vmap.get(targetVar);
+function isLocalVar(varMaps: Array<Set<string>>, varName: string) : boolean{
+  for(let m of varMaps){
+    if(m.has(varName)){
+      return true;
     }
   }
-  return undefined;
+  return false;
 }

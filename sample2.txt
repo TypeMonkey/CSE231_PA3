@@ -1,0 +1,6 @@
+x: int = 10
+if 100 < 200:
+    x = 30
+    print(x)
+else:
+    print(20)

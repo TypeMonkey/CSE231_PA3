@@ -5,7 +5,7 @@ import { parser } from 'lezer-python';
 import { traverseExpr, traverseStmt, traverse, parse } from '../parser';
 import { BinOp, Expr, UniOp } from '../ast';
 import { compile } from '../compiler';
-import { organizeProgram } from '../form';
+import { organizeProgram } from '../tc';
 
 
 // We write tests for each function in parser.ts here. Each function gets its 
@@ -136,8 +136,8 @@ describe('parse(source) function', () => {
                           " return x \n"+
                           "f(0) \n";
 
-    const parsed = parse(source);
-    compile(source);
+    //const parsed = parse(source);
+    //compile(source);
 
     //var repl = new BasicREPL();
     //let res = repl.compile(source);

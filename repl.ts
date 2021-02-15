@@ -1,168 +1,267 @@
-import {Callable, executeExpr, executeProgram, executeStmt, ProgramStore} from "./runner";
-import {compile, CompileResult, emptyEnv, GlobalEnv} from "./compiler";
-import { Program, Stmt, FuncIdentity, Type, FuncDef, funcSig, VarDeclr } from "./ast";
+import {run} from "./runner";
+import {compile} from "./compiler";
+import fs from 'fs';
+import { Program, Stmt, FuncIdentity, Type, FuncDef, Value, VarDeclr, ClassDef, identityToLabel, identityToFSig } from "./ast";
 import { parse } from "./parser";
-import { checkStatement, organizeProgram } from "./form";
+import { checkStatement, GlobalTable, organizeProgram } from "./tc";
+import { importObject } from "./tests/import-object.test";
+import { Runner } from "mocha";
 
-//iden: {name: "print", paramType: [Type.Object], returnType: Type.None},
-
-const builtins : Map<string, Callable> = new Map;
-builtins.set("print(object,)", 
- {tag: "built-in", 
-  iden: {name: "print", paramType: [Type.Object], returnType: Type.None},
-  func: (o: object) => {
-    console.log(String(o));
-    return 0n;
-}});
-
-builtins.set("abs(int,)", 
-{tag: "built-in", 
-iden: {name: "abs", paramType: [Type.Int], returnType: Type.Int},
-func: (o: bigint) => {
-  return o < 0 ? -o : o;
-}});
-
-builtins.set("max(int,int,)", {tag: "built-in", 
-iden: {name: "max", paramType: [Type.Int, Type.Int], returnType: Type.Int},
-func: (a: bigint, b: bigint) => {
-  return a <= b ? b : a;
-}});
-
-builtins.set("min(int,int,)", {tag: "built-in", 
-iden: {name: "max", paramType: [Type.Int, Type.Int], returnType: Type.Int},
-func: (a: bigint, b: bigint) => {
-  return a >= b ? b : a;
-}});
-
-builtins.set("pow(int,int,)", {tag: "built-in", 
-iden: {name: "max", paramType: [Type.Int, Type.Int], returnType: Type.Int},
-func: (a: bigint, b: bigint) => {
-  return a ** b;
-}});
-
-export class BasicREPL {
-  currentStore: ProgramStore;
-  currentEnv: { curGlobalVars: Map<string, Type>, curFuncs: Map<string, FuncIdentity>};
-  //importObject: any
-  //memory: any
-
-  
-  constructor() {
-    this.currentStore = {globalVars: new Map, functions: new Map(builtins)};
-    this.currentEnv = {curGlobalVars: new Map, curFuncs: new Map};
-  }
-
-  init(program: Program){
-
-    for(let [name, val] of Array.from(program.fileVars.entries())){
-      this.currentStore.globalVars.set(name, executeExpr(val.value, 
-                                                       this.currentStore, 
-                                                       [this.currentStore.globalVars]));
-      this.currentEnv.curGlobalVars.set(name, val.varType);
-    }
-
-    for(let [sig, def] of Array.from(program.fileFuncs.entries())){
-      this.currentStore.functions.set(sig, {tag: "source", code: def});
-      this.currentEnv.curFuncs.set(sig, def.identity);
-    }
-  }
-
-  addFunction(fdef: FuncDef){
-    const sig = funcSig(fdef.identity);
-    if(this.currentStore.functions.has(sig)){
-      throw new Error("There's already a function '"+sig+"'");
-    }
-
-    this.currentStore.functions.set(sig, {tag: "source", code: fdef});
-    this.currentEnv.curFuncs.set(sig, fdef.identity);
-  }
-
-  addGlobal(varName: string, typeValue: VarDeclr) : bigint{
-    if(this.currentStore.globalVars.has(varName)){
-      throw new Error("There's already a global variable '"+varName+"'");
-    }
-
-    this.currentStore.globalVars.set(varName, executeExpr(typeValue.value, 
-                                                        this.currentStore, 
-                                                        [this.currentStore.globalVars]));
-    this.currentEnv.curGlobalVars.set(varName, typeValue.varType);
-    return this.currentStore.globalVars.get(varName);
-  }
-
-  execState(stmt: Stmt) : bigint{
-    //console.log("GIVEN: "+Array.from(this.currentEnv.curFuncs.keys()).join());
-    checkStatement(stmt, [this.currentEnv.curGlobalVars], this.currentEnv.curFuncs);
-    if(stmt.tag === "funcdef"){
-      this.addFunction(stmt.def);
-      return undefined;
-    }
-    else if(stmt.tag === "vardec"){
-      return this.addGlobal(stmt.name, stmt.info);
-    }
-    else{
-      return executeStmt(stmt, this.currentStore, [this.currentStore.globalVars]).value;
-    }
-  }
-
-  execRawState(source: string) : bigint{
-    //console.log("parsing!!!!  "+source);
-    let rawStates = parse(source);
-    //console.log("----------GIVEN STATES: "+rawStates.join());
-
-    let latest : bigint = undefined;
-    for(let s of rawStates){
-      //console.log("----------------------STATE EX");
-      latest = this.execState(s);
-    }
-
-    return latest;
-  }
-
-  compile(source : string) : {program: Program, err: Error}{
-    /*
-    console.log("WANTING TO RUN "+source);
-
-    try{
-      let result: CompileResult = compile(source);
-      return {compileResult: result, err: undefined};
-    }
-    catch(error){
-      return {compileResult: undefined, err : error};
-    }
-    */
-
-    let builtDefs : Map<string, FuncIdentity> = new Map;
-    for(let [name, callable] of Array.from(builtins.entries())){
-      if(callable.tag === "built-in"){
-        builtDefs.set(name, callable.iden);
-      }
-      else if(callable.tag === "source"){
-        builtDefs.set(name, callable.code.identity);
-      }
-    }
-
-    console.log("WANTING TO RUN "+source);
-    try {
-      let rawStmts : Array<Stmt> = parse(source);
-      let program: Program = organizeProgram(rawStmts, builtDefs);
-      return {program: program, err: undefined}
-    } catch (error) {
-      return {program: undefined, err: error}
-    }
-  }
-
-  run(program: Program) : bigint{
-    return executeProgram(program, this.currentStore);
-  }
-
-  /*
-  async run(source : string) : Promise<any> {
-    this.importObject.updateNameMap(this.currentEnv); // is this the right place for updating the object's env?
-    //const [result, newEnv] = await run(source, {importObject: this.importObject, env: this.currentEnv});
-    //this.currentEnv = newEnv;
-    return undefined;
-  }
-  */
+/*
+ Stores heap data and information, as well as global variables and functions
+ */
+export type ProgramStore = {
+  typeStore : GlobalTable,
+  memStore: MemoryStore
 }
 
-var repl = new BasicREPL();
+export type MemoryStore = {
+  curFileVarIndex: number,
+
+  fileVariables: Array<{varName: string, declrType: Type, val: Value}>
+  fileVarIndex: Map<string, number>
+
+  /*
+   Maps function signatures (as string) to their assembly labels
+   */
+  fileFunctionLabels: Map<string, string>,
+
+  /*
+   Maps typecodes to their class names
+   */
+  fileTypes: Map<number, string>
+
+  heap: Array<Instance>,
+  heapIndex: number
+}
+
+/*
+ Represents a runtime instance of a class
+ */
+export type Instance = {
+  typeName: string,
+  attributes: Array<Value>
+}
+
+function instanciate(typecode: number, store: ProgramStore) : number{
+  const heapAddress = store.memStore.heapIndex;
+
+  const className = store.memStore.fileTypes.get(typecode);
+  const classDef = store.typeStore.classMap.get(className);
+
+  console.log("-----------> instantiating!!! "+className);
+
+  const attrs : Array<Value> = new Array(classDef.classVars.size);
+  for(let {index, varDec} of Array.from(classDef.classVars.values())){
+    if(varDec.value.tag === "value"){
+      switch(varDec.value.value.tag){
+        case "None" : {attrs[index] = {tag: "none"}; break;}
+        case "Boolean" : {attrs[index] = {tag: "bool", value: varDec.value.value.value}; break;}
+        case "Number" : {attrs[index] = {tag: "num", value: Number(varDec.value.value.value)}; break;}
+      }
+    }
+  }
+
+  store.memStore.heap.push({typeName: className, attributes: attrs});
+
+  store.memStore.heapIndex++;
+  return heapAddress;
+}
+
+function objRetr(address: number, attrIndex: number, store: ProgramStore) : number{
+  const attrValue = store.memStore.heap[address].attributes[attrIndex];
+  
+  switch(attrValue.tag){
+    case "bool": {return attrValue.value ? 1 : 0}
+    case "none": {return 0}
+    case "num": {return attrValue.value}
+    case "object": {return attrValue.address}
+  }
+}
+
+function objMut(address: number, attrIndex: number, newValue: number, store: ProgramStore) {
+  const attrValue = store.memStore.heap[address];
+
+  console.log("------ATTRIBUTE MUTATION!!! "+attrValue.typeName);
+  
+  if(attrValue.attributes[attrIndex].tag === "num"){
+    attrValue.attributes[attrIndex] = {tag: "num", value: newValue};
+  }
+  else if(attrValue.attributes[attrIndex].tag === "bool"){
+    attrValue.attributes[attrIndex] = {tag: "bool", value: newValue === 0? false : true};
+  }
+  else{
+    const heapObject = store.memStore.heap[newValue];
+    attrValue.attributes[attrIndex] = {tag: "object", name: heapObject.typeName, address: newValue};
+  }
+}
+
+function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
+  const varInfo = store.memStore.fileVariables[varIndex];
+
+  console.log("------GLOBAL VAR MUTATION!!! "+varIndex+" | "+varInfo.varName);
+
+  if(varInfo.declrType.tag === "number"){
+    store.memStore.fileVariables[varIndex].val =  {tag: "num", value: newValue};
+  }
+  else if(varInfo.declrType.tag === "bool"){
+    store.memStore.fileVariables[varIndex].val = {tag: "bool", value: newValue === 0? false : true};
+  }
+  else{
+    const heapObject = store.memStore.heap[newValue];
+    console.log("------- still gvar mut "+(heapObject === undefined))
+    store.memStore.fileVariables[varIndex].val = {tag: "object", name: heapObject.typeName, address: newValue};
+  }
+}
+
+function globalRetr(varIndex: number, store: ProgramStore) : number {
+  const varInfo = store.memStore.fileVariables[varIndex];
+
+  switch(varInfo.val.tag){
+    case "bool": {return varInfo.val.value ? 1 : 0}
+    case "none": {return 0}
+    case "num": {return varInfo.val.value}
+    case "object": {return varInfo.val.address}
+  }
+}
+
+
+export class BasicREPL {
+
+  importObject: any;
+  store: ProgramStore;
+
+  constructor(importObject : any) {  
+    this.importObject = importObject;
+
+    //built-in function map
+    const builtins: Map<string, FuncIdentity> = new Map;
+    builtins.set("abs(number)", {name: "abs", paramType: [{tag: "number"}], returnType: {tag:"number"}});
+    builtins.set("min(number,number,)", {name: "min", paramType: [{tag: "number"}, {tag: "number"}], returnType: {tag:"number"}});
+    builtins.set("max(number,number,)", {name: "max", paramType: [{tag: "number"}, {tag: "number"}], returnType: {tag:"number"}});
+    builtins.set("pow(number,number,)", {name: "pow", paramType: [{tag: "number"}, {tag: "number"}], returnType: {tag:"number"}});
+    builtins.set("print(object,)", {name: "print", paramType: [{tag: "class", name: "object"}], returnType: {tag: "class", name: "object"}});
+    builtins.set("print(number,)", {name: "print", paramType: [{tag: "number"}], returnType: {tag: "number"}});
+    builtins.set("print(boolean,)", {name: "print", paramType: [{tag: "bool"}], returnType: {tag: "bool"}});
+
+    //built-in function label map
+    const builtinsLabel: Map<string, string> = new Map;
+    builtinsLabel.set("abs(number)", "abs");
+    builtinsLabel.set("min(number,number,)", "min");
+    builtinsLabel.set("max(number,number,)", "max");
+    builtinsLabel.set("pow(number,number,)", "pow");
+    builtinsLabel.set("print(object,)", "print");
+    builtinsLabel.set("print(number,)", "print_num");
+    builtinsLabel.set("print(boolean,)", "print_bool");
+
+
+    //initialize program store
+    this.store = {
+      typeStore: {
+                    classMap: new Map,
+                    funcMap: builtins,
+                    varMap: new Map,
+                 },
+      memStore:  {
+                    curFileVarIndex: 0,
+                    fileVariables: new Array,
+                    fileVarIndex: new Map,
+                    fileFunctionLabels: builtinsLabel,
+                    fileTypes: new Map,
+                    heap: [undefined],
+                    heapIndex: 1
+                 }
+    };
+
+    //add the attribute and method functions
+    const samp : any = importObject;
+    samp["built"] = {
+      instanciate: (typeCode: number) => {return instanciate(typeCode, this.store)},
+      attrretr: (target: number, index: number) => {return objRetr(target, index, this.store)},
+      attrmut: (target: number, index: number, newVal: number) => objMut(target, index, newVal, this.store),
+      globalRet: (index: number) => {return globalRetr(index, this.store)},
+      globalMut: (index: number, newVal: number) => globalStore(index, newVal, this.store),
+    }; 
+  }   
+
+  async run(source : string) : Promise<Value>  { 
+    console.log("------ENTRANCE RUN: "+source);
+
+    const rawStates = parse(source);
+    const program = organizeProgram(rawStates, this.store.typeStore);
+
+    this.updateStores(program);
+
+    console.log("----TYPE CHECK COMPLETE!!");
+    const instrs = compile(program, this.store);
+    console.log("---- INSTRS!!!: \n "+instrs.join("\n"));
+
+    const value = await run(instrs.join("\n"), importObject);
+
+    //console.log("-------POST EXECUTE.  VALUE: "+value.tag);
+
+    return value;
+
+    //return undefined;
+  }    
+
+  updateStores(program: Program){
+    const curTypeStore = this.store.typeStore;
+    const curMemStore = this.store.memStore;
+
+    //update function map for any new functions
+    for(let [sig, iden] of Array.from(program.fileFunctions.entries())){
+      curTypeStore.funcMap.set(sig, iden.identity);
+      curMemStore.fileFunctionLabels.set(sig, identityToLabel(iden.identity));
+    }
+
+    //update var map for any new global variables
+    for(let [name, decl] of Array.from(program.fileVars.entries())){
+      if(curTypeStore.varMap.has(name)){
+        throw new Error(`File variable '${name}' has already been declared!`);
+      }
+
+      curTypeStore.varMap.set(name, decl.varType);
+
+      let value: Value = {tag: "none"};
+      if(decl.value.tag === "value"){
+        switch(decl.value.value.tag){
+          case "None":    {value = {tag: "none"}; break;}
+          case "Boolean": {value = {tag: "bool", value: decl.value.value.value}; break;}
+          case "Number":  {value = {tag: "num", value: Number(decl.value.value.value)}; break;}
+        }
+      }
+
+      curMemStore.fileVariables.push({varName : name, declrType: decl.varType, val: value})
+      curMemStore.fileVarIndex.set(name, curMemStore.curFileVarIndex);
+      curMemStore.curFileVarIndex++;
+    }
+
+    //update types
+    for(let def of Array.from(program.fileClasses.values())){
+      curMemStore.fileTypes.set(def.typeCode, def.name);
+      curTypeStore.classMap.set(def.name, def);
+    }
+  }
+
+  async tc(source : string) : Promise<Type> { 
+    const rawStates = parse(source);
+    const program = organizeProgram(rawStates, this.store.typeStore);
+    
+    if(program.topLevelStmts.length === 0){
+      return {tag: "none"};
+    }
+
+    const lastScriptStatement = program.topLevelStmts[program.topLevelStmts.length - 1];
+    if(lastScriptStatement.tag === "expr"){
+      return lastScriptStatement.expr.type;
+    }
+    return {tag: "none"};
+  }       
+}
+
+
+//sample code!
+const repl = new BasicREPL(importObject);
+const input = fs.readFileSync("sample.txt","ascii");
+repl.run(input);

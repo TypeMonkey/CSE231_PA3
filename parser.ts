@@ -14,17 +14,17 @@ import {BinOp,
         VarDeclr,
         Type,
         identityToFSig} from "./ast";
-import { organizeProgram } from "./form";
+import { organizeProgram } from "./tc";
 
 export function traverseExpr(c : TreeCursor, s : string) : Expr {
 
   //console.log("CURRENT TYPE: "+c.type.name+" | TARGET: "+s);
 
   switch(c.type.name) {
-    case "Number":        return {tag: "Number", value: BigInt(s.substring(c.from, c.to))};
-    case "Boolean":       return {tag: "Boolean", value: Boolean(s.substring(c.from, c.to).toLowerCase())};
+    case "Number":        return {tag: "value", value: {tag: "Number", value: BigInt(s.substring(c.from, c.to))}};
+    case "Boolean":       return {tag: "value", value: {tag: "Boolean", value: Boolean(s.substring(c.from, c.to).toLocaleLowerCase())}};
     case "VariableName":  return {tag: "id", name: s.substring(c.from, c.to)};
-    case "None":          return {tag: "None"};
+    case "None":          return {tag: "value", value: {tag: "None"}};
     case "UnaryExpression" : {
       //console.log(" ==> In UnaryExpression");
 
@@ -160,7 +160,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 
 export function traverseStmt(c : TreeCursor, s : string) : Stmt {
 
-  console.log("cur state?: "+c.node.type.name);
+  console.log("stmt cur state?: "+c.node.type.name);
 
   switch(c.node.type.name) {
     case "ClassDefinition":{
@@ -175,10 +175,16 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       c.nextSibling(); //goes to the first class component 
 
       let methods : Map<string, FuncDef> = new Map;
-      let variables : Map<string, VarDeclr> = new Map;
+      let variables : Map<string, {index: number, varDec: VarDeclr}> = new Map;
+
+      console.log(`----PARSING CLASS ${className} , cur: ${c.node.type.name}`);
+
+      let attrIndex = 0;
 
       do{
         let classComponent : Stmt = traverseStmt(c, s);
+
+        console.log(`   ==> method or var ${classComponent.tag}`);
 
         if(classComponent.tag === "funcdef"){
           if(methods.has(identityToFSig(classComponent.def.identity))){
@@ -190,7 +196,11 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
           if(variables.has(classComponent.name)){
             throw new Error(`The class ${className} already has an attribute ${classComponent.name}`);
           }
-          variables.set(classComponent.name, classComponent.info);
+
+          console.log(`----PARSING CLASS ${className} - var: ${classComponent.name}`);
+
+          variables.set(classComponent.name, {index: attrIndex, varDec: classComponent.info});
+          attrIndex++;
         }
       } while(c.nextSibling())
 
@@ -204,38 +214,59 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       console.log("**** ASSIGN? "+s.substring(c.from, c.to));
 
       c.firstChild(); //goes into AssignStatement, landing on the variable name
-      let varName: string = s.substring(c.from, c.to);
+      if(c.node.type.name as string === "MemberExpression"){
+        //this is an attribute change
 
-      c.nextSibling(); //maybe a TypeDef or AssignOp
-      let localVarType : Type = undefined;
-      if(c.node.type.name as string === "TypeDef"){
-        //this is a local variable declaration.
-        c.firstChild(); //goes into TypeDef and lands on ":"
+        const leftHand = traverseExpr(c,s);
+        c.nextSibling(); //skips over equal sign
+        c.nextSibling();
+        const rightHand = traverseExpr(c,s);
+        c.parent();
 
-        c.nextSibling(); //goes to type name
-        const lvarTypeName = s.substring(c.from, c.to);
-        switch(lvarTypeName){
-          case NativeTypes.Int : {localVarType = {tag: "number"}; break;}
-          case NativeTypes.Bool : {localVarType = {tag: "bool"}; break;}
-          default: {localVarType = {tag: "class", name: lvarTypeName}};
+        if(leftHand.tag !== "attrderef"){
+          throw new Error("Unknown attribute assignment expression!");
         }
 
-        c.parent();
-        c.nextSibling();
-
-        console.log("      -> is local var dec: "+c.node.type.name);
-      }
-
-      c.nextSibling(); //value of the variable 
-      let lvarValue : Literal = traverseExpr(c,s) as Literal;
-      c.parent();
-      console.log("******END OF VAR '"+varName+"'");
-
-      if(localVarType === undefined){
-        return {tag: "assign", name: varName, value : lvarValue};
+        return {tag: "attrassign", target: leftHand.target, attr: leftHand.attrName, value: rightHand};
       }
       else{
-        return {tag: "vardec", name: varName, info: {varType: localVarType, value: lvarValue}};
+        let varName: string = s.substring(c.from, c.to);
+
+        c.nextSibling(); //maybe a TypeDef or AssignOp
+        let localVarType : Type = undefined;
+        if(c.node.type.name as string === "TypeDef"){
+          //this is a local variable declaration.
+          c.firstChild(); //goes into TypeDef and lands on ":"
+
+          c.nextSibling(); //goes to type name
+          const lvarTypeName = s.substring(c.from, c.to);
+          switch(lvarTypeName){
+            case NativeTypes.Int : {localVarType = {tag: "number"}; break;}
+            case NativeTypes.Bool : {localVarType = {tag: "bool"}; break;}
+            default: {localVarType = {tag: "class", name: lvarTypeName}};
+          }
+
+          c.parent();
+          c.nextSibling();
+
+          console.log("      -> is local var dec: "+c.node.type.name);
+        }
+
+        c.nextSibling(); //value of the variable 
+        let lvarValue : Expr = traverseExpr(c,s);
+        c.parent();
+        console.log("******END OF VAR '"+varName+"'");
+
+        if(localVarType === undefined){
+          return {tag: "assign", name: varName, value : lvarValue};
+        }
+        else{
+          if(lvarValue.tag !== "value"){
+            throw new Error(`Variable declarations must be initialized with literals, for variable '${varName}'`);
+          }
+
+          return {tag: "vardec", name: varName, info: {varType: localVarType, value: lvarValue}};
+        }
       }
     }
     case "FunctionDefinition" : {
@@ -276,7 +307,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
             switch(tempParamType){
               case NativeTypes.Int : {params.set(tempParamName, {tag: "number"}); break;}
               case NativeTypes.Bool : {params.set(tempParamName, {tag: "bool"}); break;}
-              default: {params.set(tempParamName, {tag: "bool"});};
+              default: {params.set(tempParamName, {tag: "class", name: tempParamType});};
             }
 
             c.parent();
@@ -343,7 +374,11 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
             }
 
             c.nextSibling(); //value of the variable 
-            let lvarValue : Literal =  traverseExpr(c,s) as Literal;
+            let lvarValue : Expr =  traverseExpr(c,s);
+
+            if(lvarValue.tag !== "value"){
+              throw new Error(`Variable declarations must be initialized with literals, for variable '${varName}'`);
+            }
 
             if(localVarType === undefined){
               funcStates.push({tag: "assign", name: varName, value : lvarValue});
@@ -380,62 +415,36 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
     }
     case "IfStatement": {
       c.firstChild(); //goes to "if" keyword
-      console.log("!!!!IF STATEMENT!!!!-------"+s.substring(c.from, c.to));
 
-      c.nextSibling(); //goes to condition expression
-      console.log("COND:    |"+s.substring(c.from, c.to));
-      let firstIfCond : Expr = traverseExpr(c, s);
-      
-      c.nextSibling(); //goes to the body
-      
-      c.firstChild(); //goes to the starting colon of the body
-      let firstIfBody : Array<Stmt> = new Array;
-      while (c.nextSibling()) {
-        console.log("--IF STATE BODY: "+s.substring(c.from, c.to)+" type: "+c.node.type.name);
-        firstIfBody.push(traverseStmt(c, s));
-      }
-      c.parent(); //go back to parent if-statement
+      c.nextSibling(); //goes to condition
+      const condition = traverseExpr(c,s);
 
-      let elseBody : Array<Stmt> = new Array;
+      c.nextSibling(); //goes to true branch's body
+      c.firstChild();  //goes into true branch's body, starting at the semicolon
+      const trueBranch: Array<Stmt> = new Array;
       while(c.nextSibling()){
-        console.log("***IF TOP LEVEL: "+c.node.type.name);
-        /*
-         For some reason, if I don't cast it to "Any",
-         I get a type error from TypeScript ):
-         */
-        switch(c.node.type.name as string){  
-          case "elif": {
-            break;
-          }
-          case "else": {
-            console.log("  --CONFIRMED: "+s.substring(c.from, c.to));
-
-            c.nextSibling(); //go to body
-            console.log("   ---else next sibling: "+s.substring(c.from, c.to));
-
-            c.firstChild(); //get first statement in body
-            c.nextSibling(); //skip over colon
-            console.log("   ---else first child: "+s.substring(c.from, c.to));
-
-            while (c.nextSibling()) {
-              console.log("    ***ELSE STATEMENT:  "+s.substring(c.from, c.to));
-              elseBody.push(traverseStmt(c,s));
-            }
-
-            c.parent();
-
-            break;
-          }       
-        }
-        //console.log("PROCEED COND: "+s.substring(c.from, c.to)+" type: "+c.node.type.name);
+        const trueBStmt = traverseStmt(c,s);
+        trueBranch.push(trueBStmt);
       }
-      //console.log("ELIF?    |"+s.substring(c.from, c.to));
+      c.parent(); //goes back to if-statement node
 
-      c.parent(); //go back to parent
+      c.nextSibling(); //goes to else statement
+      console.log("----BACK TO ELSE: "+c.node.type.name);
+      c.nextSibling(); //goes to false branch's body
+      c.firstChild();  //goes into true branch's body, starting at the semicolon
+      const falseBranch: Array<Stmt> = new Array;
+      while(c.nextSibling()){
+        const falseBStmt = traverseStmt(c,s);
+        falseBranch.push(falseBStmt);
+      }
+      c.parent();
+
+
+      c.parent();
       return {tag: "ifstatement", 
-              cond: firstIfCond,
-              trueBranch: firstIfBody,
-              falseBranch: elseBody};
+              cond: condition,
+              trueBranch: trueBranch,
+              falseBranch: falseBranch};
     }
     case "ReturnStatement": {
       c.firstChild();  //enter node and land on the return keyword

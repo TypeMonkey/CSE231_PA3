@@ -1,13 +1,14 @@
 
 class Hello(object):
+    var1:int = 10
+    var2:bool = True
+
     def method1(self: Hello, x: int, y:int) -> int:
-        print(x+y)
         return x+y
 
-    var1:int = 10
-    var1:bool = True
 
-
+x: Hello = None
 x = Hello()
+x.var1 = 20
 print(x.var1)
 print(x.method1(1,2))

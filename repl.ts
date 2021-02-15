@@ -260,8 +260,9 @@ export class BasicREPL {
   }       
 }
 
-
+/*
 //sample code!
 const repl = new BasicREPL(importObject);
 const input = fs.readFileSync("sample.txt","ascii");
 repl.run(input);
+*/

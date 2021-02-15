@@ -275,12 +275,12 @@ export class BasicREPL {
 
 
 //sample code!
-/*
+
 async function main(){
   const repl = new BasicREPL(importObject);
-  let v = await repl.run("True");
+  let v = await repl.run("False");
   console.log("-----FIN "+v.tag);
 }
 
 main()
-*/
+

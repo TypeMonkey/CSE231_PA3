@@ -336,7 +336,7 @@ export function codeGenExpr(expr : Expr,
       switch(expr.value.tag){
         case "None": return "(i32.const 0)";
         case "Number": return `(i32.const ${expr.value.value})`
-        case "Boolean": return `(i32.const ${expr.value.value ? 1 : 0})`
+        case "Boolean": {console.log(`===> COMPILING BOOLEAN ${expr.value.value}`); return `(i32.const ${expr.value.value ? 1 : 0})`}
       }
     }
   }

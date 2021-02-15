@@ -22,7 +22,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 
   switch(c.type.name) {
     case "Number":        return {tag: "value", value: {tag: "Number", value: BigInt(s.substring(c.from, c.to))}};
-    case "Boolean":       return {tag: "value", value: {tag: "Boolean", value: Boolean(s.substring(c.from, c.to).toLocaleLowerCase())}};
+    case "Boolean":       return {tag: "value", value: {tag: "Boolean", value: Boolean(s.substring(c.from, c.to) === "True")}};
     case "VariableName":  return {tag: "id", name: s.substring(c.from, c.to)};
     case "None":          return {tag: "value", value: {tag: "None"}};
     case "UnaryExpression" : {

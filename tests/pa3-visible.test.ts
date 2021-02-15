@@ -7,4 +7,7 @@ describe("PA3 visible tests", () => {
 
   // 2
   assert("literal-bool", `True`, PyBool(true));
+
+  // 3
+  assert("literal-bool", `False`, PyBool(false));
 });

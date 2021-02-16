@@ -9,8 +9,8 @@ import { Runner } from "mocha";
 import { PyBool, PyInt, PyObj } from "./utils";
 
 //for DEV PURPOSES
-const curSource: Array<string> = new Array;
-let curInstr: Array<string> = new Array;
+//const curSource: Array<string> = new Array;
+//let curInstr: Array<string> = new Array;
 
 /*
  Stores heap data and information, as well as global variables and functions
@@ -115,12 +115,14 @@ function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
 
   //console.log("------GLOBAL VAR MUTATION!!! "+varIndex+" | "+varInfo.varName);
 
+  /*
   if(varInfo === undefined){
     throw new Error(`unknown global STORE? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
        ${curSource.join("\n")}
         INSTRS: 
         ${curInstr.join("\n")}`);
   }
+  */
 
   if(varInfo.declrType.tag === "number"){
     store.memStore.fileVariables[varIndex].val =  {tag: "num", value: newValue};
@@ -144,12 +146,14 @@ function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
 function globalRetr(varIndex: number, store: ProgramStore) : number {
   const varInfo = store.memStore.fileVariables[varIndex];
 
+  /*
   if(varInfo === undefined){
     throw new Error(`unknown global? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
        ${curSource.join("\n")}
         INSTRS: 
         ${curInstr.join("\n")}`);
   }
+  */
 
   switch(varInfo.val.tag){
     case "bool": {return varInfo.val.value ? 1 : 0}
@@ -232,8 +236,10 @@ export class BasicREPL {
     console.log("---- INSTRS!!!: \n "+instrs.join("\n"));
 
     //FOR DEV PURPOSES!
+    /*
     curSource.push(source);
     curInstr = curInstr.concat(instrs);
+    */
 
     const value = await run(instrs.join("\n"), importObject);
 
@@ -315,13 +321,13 @@ export class BasicREPL {
 
 //sample code!
 
-
 /*
+
 async function main(){
   const repl = new BasicREPL(importObject);
 
-  const input = fs.readFileSync("sample3.txt","ascii");
-  let v = await repl.run(input);
+  //const input = fs.readFileSync("sample3.txt","ascii");
+  let v = await repl.run("x:int = 0");
   
   console.log("proceeding with repl!");
 
@@ -339,8 +345,7 @@ async function main(){
   
  
 }
+
+main()
 */
-
-//main()
-
 

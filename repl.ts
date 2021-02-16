@@ -316,6 +316,7 @@ export class BasicREPL {
 //sample code!
 
 
+/*
 async function main(){
   const repl = new BasicREPL(importObject);
 
@@ -324,7 +325,7 @@ async function main(){
   
   console.log("proceeding with repl!");
 
-  /*
+  
   var stdin = process.openStdin();
   stdin.addListener("data", async function(d) {
       // note:  d is an object, and when converted to a string it will
@@ -335,10 +336,11 @@ async function main(){
       let v = await repl.run(code);
       console.log("       ===> result "+v.tag);
   });
-  */
+  
  
 }
+*/
 
-main()
+//main()
 
 

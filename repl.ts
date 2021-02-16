@@ -14,7 +14,9 @@ import { PyBool, PyInt, PyObj } from "./utils";
 export type ProgramStore = {
   typeStore : GlobalTable,
   memStore: MemoryStore,
-  curProg?: Array<string>  //FOR DEV PURPOSES
+
+  curProg?: Array<string>,  //FOR DEV PURPOSES
+  curInstrs?: Array<string>
 }
 
 export type MemoryStore = {
@@ -135,7 +137,8 @@ function globalRetr(varIndex: number, store: ProgramStore) : number {
   const varInfo = store.memStore.fileVariables[varIndex];
 
   if(varInfo === undefined){
-    throw new Error("unknown global? "+varIndex+" | "+store.memStore.fileVariables.length+" | "+store.memStore.curFileVarIndex+" PROGS: \n "+store.curProg.join("\n"));
+    throw new Error("unknown global? "+varIndex+" | "+store.memStore.fileVariables.length+" | "+
+    store.memStore.curFileVarIndex+" PROGS: \n "+store.curProg.join("\n")+"\nINSTRS: \n"+store.curInstrs.join("\n"));
   }
 
   switch(varInfo.val.tag){
@@ -208,13 +211,6 @@ export class BasicREPL {
   async run(source : string) : Promise<Value>  { 
     console.log("------ENTRANCE RUN: "+source+" | global vars: "+Array.from(this.store.typeStore.varMap.keys()).join("\n"));
 
-    if(this.store.curProg === undefined){
-      this.store.curProg = [source];
-    }
-    else{
-      this.store.curProg = this.store.curProg.concat(source);
-    }
-
     const rawStates = parse(source);
 
     const program = organizeProgram(rawStates, this.store.typeStore);
@@ -224,6 +220,15 @@ export class BasicREPL {
     console.log("----TYPE CHECK COMPLETE!!");
     const instrs = compile(program, this.store);
     console.log("---- INSTRS!!!: \n "+instrs.join("\n"));
+
+    if(this.store.curProg === undefined){
+      this.store.curProg = [source];
+      this.store.curInstrs = instrs;
+    }
+    else{
+      this.store.curProg = this.store.curProg.concat(source);
+      this.store.curInstrs = this.store.curInstrs.concat(instrs);
+    }
 
     const value = await run(instrs.join("\n"), importObject);
 
@@ -310,7 +315,7 @@ async function main(){
   const repl = new BasicREPL(importObject);
 
   //const input = fs.readFileSync("sample.txt","ascii");
-  //let v = await repl.run("x:int = 0");
+  let v = await repl.run("print(0)\nprint(False)");
   
   
   console.log("proceeding with repl!");

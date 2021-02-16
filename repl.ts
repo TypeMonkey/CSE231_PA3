@@ -143,7 +143,7 @@ export class BasicREPL {
     builtins.set("pow(number,number,)", {name: "pow", paramType: [{tag: "number"}, {tag: "number"}], returnType: {tag:"number"}});
     builtins.set("print(object,)", {name: "print", paramType: [{tag: "class", name: "object"}], returnType: {tag: "class", name: "object"}});
     builtins.set("print(number,)", {name: "print", paramType: [{tag: "number"}], returnType: {tag: "number"}});
-    builtins.set("print(boolean,)", {name: "print", paramType: [{tag: "bool"}], returnType: {tag: "bool"}});
+    builtins.set("print(bool,)", {name: "print", paramType: [{tag: "bool"}], returnType: {tag: "bool"}});
 
     //built-in function label map
     const builtinsLabel: Map<string, string> = new Map;
@@ -153,7 +153,7 @@ export class BasicREPL {
     builtinsLabel.set("pow(number,number,)", "pow");
     builtinsLabel.set("print(object,)", "print");
     builtinsLabel.set("print(number,)", "print_num");
-    builtinsLabel.set("print(boolean,)", "print_bool");
+    builtinsLabel.set("print(bool,)", "print_bool");
 
 
     //initialize program store
@@ -277,15 +277,15 @@ export class BasicREPL {
 
 
 //sample code!
-/*
+
 async function main(){
   const repl = new BasicREPL(importObject);
 
-  const input = fs.readFileSync("sample.txt","ascii");
-  let v = await repl.run(input);
+  //const input = fs.readFileSync("sample.txt","ascii");
+  let v = await repl.run("print(True)");
   //console.log("-----FIN "+v.tag);
 }
 
 main()
-*/
+
 

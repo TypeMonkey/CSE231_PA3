@@ -1,4 +1,4 @@
-import { Type } from "../ast";
+import { Type, typeToString } from "../ast";
 import { NUM, BOOL, NONE } from "../utils";
 
 function stringify(typ: Type, arg: any): string {
@@ -17,7 +17,7 @@ function stringify(typ: Type, arg: any): string {
 function print(typ: Type, arg: any): any {
   importObject.output += stringify(typ, arg);
   importObject.output += "\n";
-  //console.log("outtie "+stringify(typ, arg));  //DEV_NOTE: Mainly for debug purposes
+  console.log("outtie "+stringify(typ, arg)+"  type: "+typeToString(typ));  //DEV_NOTE: Mainly for debug purposes
   return arg;
 }
 

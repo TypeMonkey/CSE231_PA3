@@ -133,6 +133,10 @@ function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
 function globalRetr(varIndex: number, store: ProgramStore) : number {
   const varInfo = store.memStore.fileVariables[varIndex];
 
+  if(varInfo === undefined){
+    throw new Error("unknown global? "+varIndex+" | "+store.memStore.fileVariables.length+" | "+store.memStore.curFileVarIndex);
+  }
+
   switch(varInfo.val.tag){
     case "bool": {return varInfo.val.value ? 1 : 0}
     case "none": {return 0}

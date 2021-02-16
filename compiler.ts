@@ -12,7 +12,8 @@ import {BinOp,
   typeToString,
   identityToFSig,
   ClassDef,
-  identityToLabel} from "./ast";
+  identityToLabel,
+  toStringStmt} from "./ast";
 import { BinaryInteger, concat, initialize, toBigInt } from "./binary";
 import { organizeProgram } from "./tc";
 import { parse } from "./parser";
@@ -102,16 +103,18 @@ function codeGenClass(classDef: ClassDef, store: ProgramStore) : Array<string>{
     //first add parameters to localVars
 
     for(let [name, info] of Array.from(method.varDefs.entries())){
+      instrs.push(`(local $${name} i32)`);
+
       const valueInstr = codeGenExpr(info.value, [localVars], store);
       instrs = instrs.concat(valueInstr);
+      localVars.add(name);
 
-      instrs.push(`(local $${name} i32)`);
-      instrs.push(`(set_local $${name})`);
+      instrs.push(`(local.set $${name})`);
     }
 
     //compile statements
     for(let fStmt of method.bodyStms){
-      console.log("FOR FUNC: "+identityToFSig(method.identity)+"******");
+      console.log("FOR METHOD: "+identityToFSig(method.identity)+"****** : "+toStringStmt(fStmt));
       instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
     }
 
@@ -143,17 +146,18 @@ function codeGenFunction(funcDef: FuncDef,
   //compile local variables
   let localVars: Set<string> =  new Set(funcDef.params.keys());;
   for(let [name, info] of Array.from(funcDef.varDefs.entries())){
+    instrs.push(`(local $${name} i32)`);
+
     const valueInstr = codeGenExpr(info.value, [localVars], store);
     instrs = instrs.concat(valueInstr);
     localVars.add(name);
 
-    instrs.push(`(local $${name} i32)`);
-    instrs.push(`(set_local $${name})`);
+    instrs.push(`(local.set $${name})`);
   }
 
   //compile statements
   for(let fStmt of funcDef.bodyStms){
-    console.log("FOR FUNC: "+identityToFSig(funcDef.identity)+"******");
+    console.log("FOR FUNC: "+identityToFSig(funcDef.identity)+"****** : "+toStringStmt(fStmt));
     instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
   }
 
@@ -222,6 +226,7 @@ export function codeGenStmt(stmt: Stmt,
       }
     }
     case "ret":{
+      console.log("******** compiling return!!!! "+toStringStmt(stmt));
       return [codeGenExpr(stmt.expr, localVars, store)];
     }
     case "expr": {

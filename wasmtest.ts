@@ -30,6 +30,7 @@ export async function run(config: any){
       (func $print (import "imports" "print") (param i32) (result i32))
       (func $tester (import "built" "testerWester") (param i32) (result i32))
       (func $exported_func (export "exported_func") (result i32)
+      (local $x i32)
       (call $tester (i32.const 10))
       (drop)
       (if (result i32) (i32.lt_s (i32.const 100) (i32.const 200))

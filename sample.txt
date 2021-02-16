@@ -4,7 +4,10 @@ class Hello(object):
     var2:bool = True
 
     def method1(self: Hello, x: int, y:int) -> int:
-        return x+y
+        z: int = 0
+        z = x + y
+        self.var1 = x
+        return z
 
 
 x: Hello = None
@@ -12,3 +15,4 @@ x = Hello()
 x.var1 = 20
 print(x.var1)
 print(x.method1(1,2))
+print(x.var1)

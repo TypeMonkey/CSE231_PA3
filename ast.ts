@@ -165,6 +165,22 @@ export function typeToString(typ: Type) : string{
 
 /**
  * Returns the proper string representation of
+ * an Stmt for debugging purposes
+ * @param stmt - an Stmt
+ */
+export function toStringStmt(stmt : Stmt) : string {
+  switch(stmt.tag){
+    case "expr": return toString(stmt.expr);
+    case "ret" : return "return "+toString(stmt.expr);
+    case "assign" : return stmt.name+" = "+toString(stmt.value);
+    case "attrassign" : return toString(stmt.target)+"."+stmt.attr+" = "+toString(stmt.value);
+    case "vardec" : return stmt.name+" : "+typeToString(stmt.info.varType)+" = "+toString(stmt.info.value);
+    default: return "~UNSUPPORTED: "+stmt.tag;
+  }
+}
+
+/**
+ * Returns the proper string representation of
  * an Expr for debugging purposes
  * @param params - an Expr
  */
@@ -176,10 +192,10 @@ export function toString(param : Expr) : string {
           return "None";
         }
         case "Boolean" : {
-          return `${param.value}`;
+          return `${param.value.value}`;
         }
         case "Number" : {
-          return param.value.toString();
+          return param.value.value.toString();
         }
       }
     }

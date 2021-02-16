@@ -14,7 +14,8 @@ import {BinOp,
     VarDeclr,
     NativeTypes,
     typeToString,
-    ClassDef} from "./ast";
+    ClassDef,
+    toStringStmt} from "./ast";
 import { traverseExpr, traverseStmt } from "./parser";
 
 /**
@@ -110,6 +111,21 @@ function flookup(fname: string, fpTypes: Array<Type>,
     }
 } 
 
+function checkReturn(body: Array<Stmt>, expectedReturnType: Type) : boolean {
+    if(body.length >= 1){
+        const lastStatemnt = body[body.length - 1];
+        if(lastStatemnt.tag === "ret"){
+            console.log(`----checking return: `+typeToString(expectedReturnType)+" | "+typeToString(lastStatemnt.expr.type));
+            return isAssignable(expectedReturnType, lastStatemnt.expr.type);
+        }
+        else if(lastStatemnt.tag === "ifstatement"){
+            return checkReturn(lastStatemnt.trueBranch, expectedReturnType) && 
+                   checkReturn(lastStatemnt.falseBranch, expectedReturnType);
+        }
+    }
+    return false;
+}
+
 export function checkExpr(expr: Expr,
     varMaps: Array<Map<string, Type>>,
     globalTable: GlobalTable) : Type {
@@ -159,7 +175,7 @@ export function checkExpr(expr: Expr,
             let leftType : Type = checkExpr(expr.left, varMaps, globalTable);
             let rightType : Type = checkExpr(expr.right, varMaps, globalTable);
 
-            const equalityOps = new Set([BinOp.Equal, BinOp.NEqual]);
+            const equalityOps = new Set([BinOp.Equal, BinOp.NEqual, BinOp.Is]);
             const relational = new Set([BinOp.LEqual, BinOp.Less, BinOp.GEqual, BinOp.Great]);
             const arithOps = new Set([BinOp.Add, BinOp.Sub, BinOp.Mul, BinOp.Div, BinOp.Mul]);
 
@@ -286,24 +302,22 @@ export function checkExpr(expr: Expr,
 
 export function checkStatement(stmt: Stmt,
                                varMaps: Array<Map<string, Type>>,
-                               globalTable: GlobalTable,
-                               expectedReturnType : Type = {tag: "none"}) : 
-                               {returnType?: Type, lastType: Type} {
+                               globalTable: GlobalTable) : Type {
     switch(stmt.tag){
         case "vardec": {
             //this shouldn't be triggered as variable declarations
             //should be processed when checking the function itself
-            return {returnType: undefined, lastType: {tag: "none"}};
+            return {tag: "none"};
         }
         case "funcdef":{
             //this shouldn't be triggered as function definitions
             //are top level.
-            return {returnType: undefined, lastType: {tag: "none"}};
+            return {tag: "none"};
         }
         case "assign": {
             let varType : Type = lookup(stmt.name, varMaps);
             if(varType === undefined){
-                throw new Error("Unfound variable '"+stmt.name+"'.");
+                throw new Error("Unfound variable '"+stmt.name+"'. "+toString(stmt.value));
             }
 
             let valueType : Type = checkExpr(stmt.value, varMaps, globalTable);
@@ -311,7 +325,7 @@ export function checkStatement(stmt: Stmt,
                 throw new Error("Mismatched type in assigning '"+stmt.name+"' with the value "+toString(stmt.value));
             }
 
-            return {returnType: undefined, lastType: {tag: "none"}};
+            return {tag: "none"};
         }
         case "attrassign" : {       
             const targetType = checkExpr(stmt.target, varMaps, globalTable);
@@ -333,12 +347,12 @@ export function checkStatement(stmt: Stmt,
                     throw new Error("Mismatched type in assigning attribute '"+stmt.attr+"' of "+targetTypeStr+"with the value "+toString(stmt.value));
                 }
 
-                return {returnType: undefined, lastType: {tag: "none"}};
+                return {tag: "none"};
             }
             
             throw new Error(`The type ${typeToString(targetType)} has no attributes!`);
         }
-        case "pass": return {returnType: undefined, lastType: {tag: "none"}};
+        case "pass": return {tag: "none"};
         case "ifstatement": {
             //Check the type of the conditional
 
@@ -351,50 +365,24 @@ export function checkStatement(stmt: Stmt,
             }
 
             //Check the statements of the true branch
-            let latestType : Type = {tag: "none"};
-            let returnType : Type = undefined;
             for(let s of stmt.trueBranch){
-                const temp = checkStatement(s, varMaps, globalTable, expectedReturnType);
-
-                if(temp.returnType !== undefined){
-                    returnType = temp.returnType;
-                }
-                latestType = temp.lastType;
-            }
-
-            if(returnType !== undefined){
-                if(!isAssignable(expectedReturnType, returnType)){
-                    throw new Error("Incompatible type: value is a '"+typeToString(returnType)+"' but is expected to be '"+typeToString(expectedReturnType)+"'");
-                }
+                checkStatement(s, varMaps, globalTable);   
             }
 
             //check the false branch
-            latestType = {tag: "none"};
-            returnType = undefined;
             for(let s of stmt.falseBranch){
-                const temp = checkStatement(s, varMaps, globalTable, expectedReturnType);
-
-                if(temp.returnType !== undefined){
-                    returnType = temp.returnType;
-                }
-                latestType = temp.lastType;
+                checkStatement(s, varMaps, globalTable);
             }
 
-            if(returnType !== undefined){
-                if(!isAssignable(expectedReturnType, returnType)){
-                    throw new Error("Incompatible type: value is a '"+typeToString(returnType)+"' but is expected to be '"+typeToString(expectedReturnType)+"'");
-                }
-            }
-
-            return {returnType: returnType, lastType: latestType};
+            return {tag: "none"};
         }
         case "ret":{
-            let exprType : Type = checkExpr(stmt.expr, varMaps, globalTable);
-            return {returnType: exprType, lastType: exprType};
+            const exprType : Type = checkExpr(stmt.expr, varMaps, globalTable);
+            return exprType;
         }
         case "expr":{
             const exprType = checkExpr(stmt.expr, varMaps, globalTable)
-            return {returnType: undefined, lastType: exprType};
+            return exprType;
         }
     }
 }
@@ -412,10 +400,11 @@ export function checkFunctionDef(funcDef: FuncDef, globalTable: GlobalTable) {
     //then, add on local vars and type check their values
     for(let [name, val] of Array.from(funcDef.varDefs.entries())){
         let valueType = checkExpr(val.value, [localScope].concat(globalTable.varMap), globalTable);
-        if(valueType !== val.varType){
-            throw new Error("'"+name+"' is of type "+val.varType+" but is being assigned a "+valueType);
+        if(!isAssignable(val.varType, valueType)){
+            throw new Error(`'${name}' is of type ${typeToString(val.varType)} but is being assigned a ${typeToString(valueType)}`);
         }
 
+        console.log("----ADDING LOCAL VAR TO FUNC MAP: "+name);
         localScope.set(name, val.varType);
     }
 
@@ -428,27 +417,12 @@ export function checkFunctionDef(funcDef: FuncDef, globalTable: GlobalTable) {
 
     //check function body
     for(let funcState of funcDef.bodyStms){
-        switch(funcState.tag){
-            case "ret":{
-                returnType = checkStatement(funcState, newVarMaps, globalTable, funcDef.identity.returnType).returnType;
-                console.log(" --- RETURN ENCOUNTERED!!! "+typeToString(returnType));
-            }
-            default: {
-                const result = checkStatement(funcState, newVarMaps, globalTable, funcDef.identity.returnType);
-                
-                if(result.returnType !== undefined){
-                    returnType = funcDef.identity.returnType;
-                }
-
-                console.log("eval return type: "+returnType+" | stmt type: "+funcState.tag);
-                break;
-            }
-        }
+        checkStatement(funcState, newVarMaps, globalTable);
     }
 
-    if(!isAssignable(funcDef.identity.returnType, returnType) ){
-        console.log(" recent return type: "+returnType);
-        throw new Error("The function '"+identityToFSig(funcDef.identity)+"' must have a return of '"+funcDef.identity.returnType+"' on all paths");
+    if(funcDef.identity.returnType.tag !== "none" && !checkReturn(funcDef.bodyStms, funcDef.identity.returnType)){
+        console.log(" recent return type: "+funcDef.identity.returnType.tag);
+        throw new Error("The function '"+identityToFSig(funcDef.identity)+"' must have a return of '"+typeToString(funcDef.identity.returnType)+"' on all paths");
     }
 }
 
@@ -470,6 +444,7 @@ export function checkClassDef(classDef: ClassDef, globalTable: GlobalTable) {
     for(let fdef of Array.from(classDef.methods.values())){
         if(fdef.params.has("self") && 
            typeToString(fdef.params.get("self")) === classDef.name){
+           console.log("========TYPECHECKING INSTANCE METH: "+identityToFSig(fdef.identity));
            checkFunctionDef(fdef, globalTable);
         }
         else{
@@ -549,6 +524,7 @@ export function organizeProgram(stmts: Array<Stmt>,
                 break;
             }
             default: {
+                console.log("-----TOP LEVEL STATEMENTS: "+toStringStmt(stmt));
                 topLevelStmts.push(stmt);
                 break;
             }
@@ -583,7 +559,7 @@ export function organizeProgram(stmts: Array<Stmt>,
 
     //check script statements
     for(let stmt of topLevelStmts){
-        console.log(" ----typechking statement with varmap: "+Array.from(globalEnv.varMap.keys()));
+        console.log(" ----typechking statement with varmap: "+Array.from(globalEnv.varMap.keys())+" | stmt tag: "+stmt.tag);
         checkStatement(stmt, [globalEnv.varMap], globalEnv);
     }
 

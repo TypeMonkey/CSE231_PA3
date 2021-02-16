@@ -6,8 +6,18 @@ describe("PA3 visible tests", () => {
   assert("literal-int", `100`, PyInt(100));
 
   // 2
-  assert("literal-bool", `True`, PyBool(true));
+  assert("literal-bool-True", `True`, PyBool(true));
 
   // 3
-  assert("literal-bool", `False`, PyBool(false));
+  assert("literal-bool-False", `False`, PyBool(false));
+
+  //4
+  assert("literal-int-negation", `-100`, PyInt(-100));
+
+  //5
+  assert("literal-bool-negation", `not True`,  PyBool(false));
+
+  //6
+  assert("literal-bool-negation", `not False`,  PyBool(true));
+
 });

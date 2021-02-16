@@ -189,6 +189,7 @@ export class BasicREPL {
     console.log("------ENTRANCE RUN: "+source);
 
     const rawStates = parse(source);
+
     const program = organizeProgram(rawStates, this.store.typeStore);
 
     this.updateStores(program);
@@ -197,6 +198,7 @@ export class BasicREPL {
     const instrs = compile(program, this.store);
     console.log("---- INSTRS!!!: \n "+instrs.join("\n"));
 
+    
     const value = await run(instrs.join("\n"), importObject);
 
     console.log("-------POST EXECUTE.  VALUE: "+value+" | "+program.topLevelStmts.length);
@@ -278,8 +280,10 @@ export class BasicREPL {
 
 async function main(){
   const repl = new BasicREPL(importObject);
-  let v = await repl.run("False");
-  console.log("-----FIN "+v.tag);
+
+  const input = fs.readFileSync("sample.txt","ascii");
+  let v = await repl.run(input);
+  //console.log("-----FIN "+v.tag);
 }
 
 main()

@@ -13,7 +13,8 @@ import {BinOp,
         toString,
         VarDeclr,
         Type,
-        identityToFSig} from "./ast";
+        identityToFSig,
+        toStringStmt} from "./ast";
 import { organizeProgram } from "./tc";
 
 export function traverseExpr(c : TreeCursor, s : string) : Expr {
@@ -347,60 +348,19 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       while (c.nextSibling()) {
         console.log("---FUNC STATEMENT: "+c.node.type.name);
         
-        switch(c.node.type.name as string){
-          case "AssignStatement":{
-            console.log("**** ASSIGN? "+s.substring(c.from, c.to));
-
-            c.firstChild(); //goes into AssignStatement, landing on the variable name
-            let varName: string = s.substring(c.from, c.to);
-
-            c.nextSibling(); //maybe a TypeDef or AssignOp
-            let localVarType : Type = undefined;
-            if(c.node.type.name as string === "TypeDef"){
-              //this is a local variable declaration.
-              c.firstChild(); //goes into TypeDef and lands on ":"
-
-              c.nextSibling(); //goes to type name
-              const lvarTypeName = s.substring(c.from, c.to);
-              switch(lvarTypeName){
-                case NativeTypes.Int : {localVarType = {tag: "number"}; break;}
-                case NativeTypes.Bool : {localVarType = {tag: "bool"}; break;}
-                default: {localVarType = {tag: "class", name: lvarTypeName}};
-              }
-
-              c.parent();
-              c.nextSibling();
-
-              console.log("      -> is local var dec: "+c.node.type.name);
-            }
-
-            c.nextSibling(); //value of the variable 
-            let lvarValue : Expr =  traverseExpr(c,s);
-
-            if(lvarValue.tag !== "value"){
-              throw new Error(`Variable declarations must be initialized with literals, for variable '${varName}'`);
-            }
-
-            if(localVarType === undefined){
-              funcStates.push({tag: "assign", name: varName, value : lvarValue});
-            }
-            else{
-              if(funcLocalVars.has(varName) || params.has(varName)){
-                throw new Error("Already has a local variable '"+varName+"'");
-              }
-              funcLocalVars.set(varName, {varType: localVarType, value: lvarValue});
-            }
-
-            c.parent();
-            console.log("******END OF VAR '"+varName+"'");
-            break;
-          }
-          default:{
-            funcStates.push(traverseStmt(c, s));
-            break;
-          }
-        }
+        const bodyStmt = traverseStmt(c, s);
+        console.log("*************result: "+toStringStmt(bodyStmt));
         
+        if(bodyStmt.tag === "vardec"){
+          if(funcLocalVars.has(bodyStmt.name)){
+            throw new Error(`Local variable ${bodyStmt.name} has already been declared!`);
+          }
+
+          funcLocalVars.set(bodyStmt.name, bodyStmt.info);
+        }
+        else{
+          funcStates.push(bodyStmt);
+        }
       }
       c.parent();
 

@@ -136,6 +136,7 @@ function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
 function globalRetr(varIndex: number, store: ProgramStore) : number {
   const varInfo = store.memStore.fileVariables[varIndex];
 
+  console.log("IN RETR!!! "+globalRetr.caller.name);
   if(varInfo === undefined){
     throw new Error("unknown global? "+varIndex+" | "+store.memStore.fileVariables.length+" | "+
     store.memStore.curFileVarIndex+" PROGS: \n "+store.curProg.join("\n")+"\nINSTRS: \n"+store.curInstrs.join("\n"));
@@ -310,14 +311,14 @@ export class BasicREPL {
 
 //sample code!
 
-
+/*
 async function main(){
   const repl = new BasicREPL(importObject);
 
   //const input = fs.readFileSync("sample.txt","ascii");
   let v = await repl.run("print(0)\nprint(False)");
-  
-  
+  */
+  /*
   console.log("proceeding with repl!");
 
   var stdin = process.openStdin();
@@ -330,8 +331,10 @@ async function main(){
       let v = await repl.run(code);
       console.log("       ===> result "+v.tag);
   });
+  */
+ /*
 }
 
 main()
-
+*/
 

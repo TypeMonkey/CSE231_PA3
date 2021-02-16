@@ -428,9 +428,14 @@ export function checkFunctionDef(funcDef: FuncDef, globalTable: GlobalTable) {
         checkStatement(funcState, newVarMaps, globalTable);
     }
 
-    if(funcDef.identity.returnType.tag !== "none" && !checkReturn(funcDef.bodyStms, funcDef.identity.returnType)){
-        console.log(" recent return type: "+funcDef.identity.returnType.tag);
-        throw new Error("The function '"+identityToFSig(funcDef.identity)+"' must have a return of '"+typeToString(funcDef.identity.returnType)+"' on all paths");
+    if(funcDef.identity.returnType.tag !== "none"){
+        if(!checkReturn(funcDef.bodyStms, funcDef.identity.returnType)){
+            console.log(" recent return type: "+funcDef.identity.returnType.tag);
+            throw new Error("The function '"+identityToFSig(funcDef.identity)+"' must have a return of '"+typeToString(funcDef.identity.returnType)+"' on all paths");
+        }
+    }
+    else if(!checkReturn(funcDef.bodyStms, funcDef.identity.returnType)){
+        funcDef.bodyStms.push({tag: "ret", expr: {tag: "value", value: {tag: "None"}}});
     }
 }
 

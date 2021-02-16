@@ -8,15 +8,16 @@ import { importObject } from "./tests/import-object.test";
 import { Runner } from "mocha";
 import { PyBool, PyInt, PyObj } from "./utils";
 
+//for DEV PURPOSES
+const curSource: Array<string> = new Array;
+let curInstr: Array<string> = new Array;
+
 /*
  Stores heap data and information, as well as global variables and functions
  */
 export type ProgramStore = {
   typeStore : GlobalTable,
   memStore: MemoryStore,
-
-  curProg?: Array<string>,  //FOR DEV PURPOSES
-  curInstrs?: Array<string>
 }
 
 export type MemoryStore = {
@@ -116,9 +117,9 @@ function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
 
   if(varInfo === undefined){
     throw new Error(`unknown global STORE? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
-       ${store.curProg.join("\n")}
+       ${curSource.join("\n")}
         INSTRS: 
-        ${store.curInstrs.join("\n")}`);
+        ${curInstr.join("\n")}`);
   }
 
   if(varInfo.declrType.tag === "number"){
@@ -145,9 +146,9 @@ function globalRetr(varIndex: number, store: ProgramStore) : number {
 
   if(varInfo === undefined){
     throw new Error(`unknown global? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
-       ${store.curProg.join("\n")}
+       ${curSource.join("\n")}
         INSTRS: 
-        ${store.curInstrs.join("\n")}`);
+        ${curInstr.join("\n")}`);
   }
 
   switch(varInfo.val.tag){
@@ -230,14 +231,9 @@ export class BasicREPL {
     const instrs = compile(program, this.store);
     console.log("---- INSTRS!!!: \n "+instrs.join("\n"));
 
-    if(this.store.curProg === undefined){
-      this.store.curProg = [source];
-      this.store.curInstrs = instrs;
-    }
-    else{
-      this.store.curProg = this.store.curProg.concat(source);
-      this.store.curInstrs = this.store.curInstrs.concat(instrs);
-    }
+    //FOR DEV PURPOSES!
+    curSource.push(source);
+    curInstr = curInstr.concat(instrs);
 
     const value = await run(instrs.join("\n"), importObject);
 
@@ -319,16 +315,16 @@ export class BasicREPL {
 
 //sample code!
 
-/*
+
 async function main(){
   const repl = new BasicREPL(importObject);
 
-  //const input = fs.readFileSync("sample.txt","ascii");
-  let v = await repl.run("print(0)\nprint(False)");
-  */
-  /*
+  const input = fs.readFileSync("sample3.txt","ascii");
+  let v = await repl.run(input);
+  
   console.log("proceeding with repl!");
 
+  /*
   var stdin = process.openStdin();
   stdin.addListener("data", async function(d) {
       // note:  d is an object, and when converted to a string it will
@@ -340,9 +336,9 @@ async function main(){
       console.log("       ===> result "+v.tag);
   });
   */
- /*
+ 
 }
 
 main()
-*/
+
 

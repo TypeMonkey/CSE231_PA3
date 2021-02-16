@@ -206,6 +206,8 @@ export class BasicREPL {
 
   async run(source : string) : Promise<Value>  { 
     console.log("------ENTRANCE RUN: "+source+" | global vars: "+Array.from(this.store.typeStore.varMap.keys()).join("\n"));
+    throw new Error("----PROGRAM: "+source);
+
 
     const rawStates = parse(source);
 

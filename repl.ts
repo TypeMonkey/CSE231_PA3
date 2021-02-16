@@ -293,7 +293,7 @@ export class BasicREPL {
 
 //sample code!
 
-
+/*
 async function main(){
   const repl = new BasicREPL(importObject);
 
@@ -313,9 +313,9 @@ async function main(){
       let v = await repl.run(code);
       console.log("       ===> result "+v.tag);
   });
-  */
+  
 }
 
 main()
-
+*/
 

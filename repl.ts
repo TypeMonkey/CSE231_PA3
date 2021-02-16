@@ -13,7 +13,8 @@ import { PyBool, PyInt, PyObj } from "./utils";
  */
 export type ProgramStore = {
   typeStore : GlobalTable,
-  memStore: MemoryStore
+  memStore: MemoryStore,
+  curProg?: Array<string>  //FOR DEV PURPOSES
 }
 
 export type MemoryStore = {
@@ -134,7 +135,7 @@ function globalRetr(varIndex: number, store: ProgramStore) : number {
   const varInfo = store.memStore.fileVariables[varIndex];
 
   if(varInfo === undefined){
-    throw new Error("unknown global? "+varIndex+" | "+store.memStore.fileVariables.length+" | "+store.memStore.curFileVarIndex);
+    throw new Error("unknown global? "+varIndex+" | "+store.memStore.fileVariables.length+" | "+store.memStore.curFileVarIndex+" PROGS: \n "+store.curProg.join("\n"));
   }
 
   switch(varInfo.val.tag){
@@ -206,9 +207,14 @@ export class BasicREPL {
 
   async run(source : string) : Promise<Value>  { 
     console.log("------ENTRANCE RUN: "+source+" | global vars: "+Array.from(this.store.typeStore.varMap.keys()).join("\n"));
-    throw new Error("----PROGRAM: "+source);
 
-    /*
+    if(this.store.curProg === undefined){
+      this.store.curProg = [source];
+    }
+    else{
+      this.store.curProg = this.store.curProg.concat(source);
+    }
+
     const rawStates = parse(source);
 
     const program = organizeProgram(rawStates, this.store.typeStore);
@@ -239,7 +245,6 @@ export class BasicREPL {
     }
 
     return {tag: "none"};
-    */
   }    
 
   updateStores(program: Program){
@@ -300,14 +305,14 @@ export class BasicREPL {
 
 //sample code!
 
-/*
+
 async function main(){
   const repl = new BasicREPL(importObject);
 
-  const input = fs.readFileSync("sample.txt","ascii");
-  let v = await repl.run(input);
+  //const input = fs.readFileSync("sample.txt","ascii");
+  //let v = await repl.run("x:int = 0");
   
-  /*
+  
   console.log("proceeding with repl!");
 
   var stdin = process.openStdin();
@@ -320,9 +325,8 @@ async function main(){
       let v = await repl.run(code);
       console.log("       ===> result "+v.tag);
   });
-  
 }
 
 main()
-*/
+
 

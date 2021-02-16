@@ -114,6 +114,13 @@ function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
 
   //console.log("------GLOBAL VAR MUTATION!!! "+varIndex+" | "+varInfo.varName);
 
+  if(varInfo === undefined){
+    throw new Error(`unknown global STORE? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
+       ${store.curProg.join("\n")}
+        INSTRS: 
+        ${store.curInstrs.join("\n")}`);
+  }
+
   if(varInfo.declrType.tag === "number"){
     store.memStore.fileVariables[varIndex].val =  {tag: "num", value: newValue};
   }

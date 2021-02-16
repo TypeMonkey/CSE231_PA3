@@ -88,7 +88,7 @@ function objRetr(address: number, attrIndex: number, store: ProgramStore) : numb
 function objMut(address: number, attrIndex: number, newValue: number, store: ProgramStore) {
   const attrValue = store.memStore.heap[address];
 
-  console.log("------ATTRIBUTE MUTATION!!! "+attrValue.typeName);
+  //console.log("------ATTRIBUTE MUTATION!!! "+attrValue.typeName);
   
   if(attrValue.typeName === "none"){
     throw new Error("Heap object at index "+address+" is None!");
@@ -109,7 +109,7 @@ function objMut(address: number, attrIndex: number, newValue: number, store: Pro
 function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
   const varInfo = store.memStore.fileVariables[varIndex];
 
-  console.log("------GLOBAL VAR MUTATION!!! "+varIndex+" | "+varInfo.varName);
+  //console.log("------GLOBAL VAR MUTATION!!! "+varIndex+" | "+varInfo.varName);
 
   if(varInfo.declrType.tag === "number"){
     store.memStore.fileVariables[varIndex].val =  {tag: "num", value: newValue};

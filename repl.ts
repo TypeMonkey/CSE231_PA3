@@ -208,7 +208,7 @@ export class BasicREPL {
     console.log("------ENTRANCE RUN: "+source+" | global vars: "+Array.from(this.store.typeStore.varMap.keys()).join("\n"));
     throw new Error("----PROGRAM: "+source);
 
-
+    /*
     const rawStates = parse(source);
 
     const program = organizeProgram(rawStates, this.store.typeStore);
@@ -239,6 +239,7 @@ export class BasicREPL {
     }
 
     return {tag: "none"};
+    */
   }    
 
   updateStores(program: Program){

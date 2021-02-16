@@ -70,8 +70,13 @@ function instanciate(typecode: number, store: ProgramStore) : number{
 }
 
 function objRetr(address: number, attrIndex: number, store: ProgramStore) : number{
-  const attrValue = store.memStore.heap[address].attributes[attrIndex];
+  const heapObject = store.memStore.heap[address];
   
+  if(heapObject.typeName === "none"){
+    throw new Error("Heap object at index "+address+" is None!");
+  }
+
+  const attrValue = heapObject.attributes[attrIndex];
   switch(attrValue.tag){
     case "bool": {return attrValue.value ? 1 : 0}
     case "none": {return 0}
@@ -85,6 +90,10 @@ function objMut(address: number, attrIndex: number, newValue: number, store: Pro
 
   console.log("------ATTRIBUTE MUTATION!!! "+attrValue.typeName);
   
+  if(attrValue.typeName === "none"){
+    throw new Error("Heap object at index "+address+" is None!");
+  }
+
   if(attrValue.attributes[attrIndex].tag === "num"){
     attrValue.attributes[attrIndex] = {tag: "num", value: newValue};
   }
@@ -109,9 +118,15 @@ function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
     store.memStore.fileVariables[varIndex].val = {tag: "bool", value: newValue === 0? false : true};
   }
   else{
-    const heapObject = store.memStore.heap[newValue];
-    console.log("------- still gvar mut "+(heapObject === undefined))
-    store.memStore.fileVariables[varIndex].val = {tag: "object", name: heapObject.typeName, address: newValue};
+    if(newValue === 0){
+      console.log("------- gvar is nulled!");
+      store.memStore.heap[varIndex] = {typeName: "none", attributes: undefined};
+    }
+    else{
+      const heapObject = store.memStore.heap[newValue];
+      console.log("------- still gvar mut "+(heapObject === undefined)+" | "+newValue)
+      store.memStore.fileVariables[varIndex].val = {tag: "object", name: heapObject.typeName, address: newValue};
+    }
   }
 }
 
@@ -278,13 +293,14 @@ export class BasicREPL {
 
 //sample code!
 
-/*
+
 async function main(){
   const repl = new BasicREPL(importObject);
 
   const input = fs.readFileSync("sample.txt","ascii");
   let v = await repl.run(input);
   
+  /*
   console.log("proceeding with repl!");
 
   var stdin = process.openStdin();
@@ -297,8 +313,9 @@ async function main(){
       let v = await repl.run(code);
       console.log("       ===> result "+v.tag);
   });
+  */
 }
 
 main()
-*/
+
 

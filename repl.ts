@@ -186,7 +186,7 @@ export class BasicREPL {
   }   
 
   async run(source : string) : Promise<Value>  { 
-    console.log("------ENTRANCE RUN: "+source);
+    console.log("------ENTRANCE RUN: "+source+" | global vars: "+Array.from(this.store.typeStore.varMap.keys()).join("\n"));
 
     const rawStates = parse(source);
 
@@ -216,6 +216,7 @@ export class BasicREPL {
         case "class": return {tag: "object", name: this.store.memStore.heap[value].typeName, address: value};
       }
     }
+
     return {tag: "none"};
   }    
 
@@ -281,9 +282,21 @@ export class BasicREPL {
 async function main(){
   const repl = new BasicREPL(importObject);
 
-  const input = fs.readFileSync("sample3.txt","ascii");
+  const input = fs.readFileSync("sample.txt","ascii");
   let v = await repl.run(input);
-  //console.log("-----FIN "+v.tag);
+  
+  console.log("proceeding with repl!");
+
+  var stdin = process.openStdin();
+  stdin.addListener("data", async function(d) {
+      // note:  d is an object, and when converted to a string it will
+      // end with a linefeed.  so we (rather crudely) account for that  
+      // with toString() and then substring() 
+      const code = d.toString().trim();
+      console.log("you entered: [" + code + "]");
+      let v = await repl.run(code);
+      console.log("       ===> result "+v.tag);
+  });
 }
 
 main()

@@ -69,6 +69,7 @@ function isAssignable(destType: Type, sourceType: Type) : boolean{
 function flookup(fname: string, fpTypes: Array<Type>,
                  funcMap: Map<string, FuncIdentity>) : FuncIdentity {
     let fsig = funcCallToFSig(fname, fpTypes);
+    console.log("========flookup: "+fsig);
 
     if(funcMap.has(fsig)){
         return funcMap.get(fsig);
@@ -479,7 +480,7 @@ export function organizeProgram(stmts: Array<Stmt>,
     //we override builtin functions if a similar signature was declared
     let fileFuncs : Map<string, FuncDef> = new Map;
     let fileVars : Map<string, VarDeclr> = new Map;
-
+    let fileClasses: Map<string, ClassDef> = new Map;
     let classTypeCode = 0;
 
     //now, organize the top level statements
@@ -494,6 +495,7 @@ export function organizeProgram(stmts: Array<Stmt>,
                 stmt.def.typeCode = classTypeCode;
                 classTypeCode++;
                 globalClasses.set(classDef.name, classDef);
+                fileClasses.set(classDef.name, classDef);
                 break;
             }
             case "funcdef": {
@@ -546,7 +548,7 @@ export function organizeProgram(stmts: Array<Stmt>,
 
     //now, check functions and variables
     const globalEnv : GlobalTable = {funcMap: globalFuncs, 
-                                     varMap: new Map, 
+                                     varMap: globalVars, 
                                      classMap: globalClasses};
 
     //check global variables
@@ -566,7 +568,7 @@ export function organizeProgram(stmts: Array<Stmt>,
     }
 
     //check classes
-    for(let cdef of Array.from(globalClasses.values())){
+    for(let cdef of Array.from(fileClasses.values())){
         checkClassDef(cdef, globalEnv);
     }
 

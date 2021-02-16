@@ -113,6 +113,10 @@ function codeGenClass(classDef: ClassDef, store: ProgramStore) : Array<string>{
     instrs.push(funcHeader);
 
     instrs.push(`(local $1emp i32)`); //used for statement values
+    Array.from(method.varDefs.keys()).forEach(v => {
+      instrs.push(`(local $${v} i32)`);
+    });
+
     instrs.push(`(local.set $1emp (i32.const 0))`); //initialize it with 0
 
     //compile local variables
@@ -120,8 +124,6 @@ function codeGenClass(classDef: ClassDef, store: ProgramStore) : Array<string>{
     //first add parameters to localVars
 
     for(let [name, info] of Array.from(method.varDefs.entries())){
-      instrs.push(`(local $${name} i32)`);
-
       const valueInstr = codeGenExpr(info.value, [localVars], store);
       instrs = instrs.concat(valueInstr);
       localVars.add(name);
@@ -162,13 +164,15 @@ function codeGenFunction(funcDef: FuncDef,
   instrs.push(funcHeader);
 
   instrs.push(`(local $1emp i32)`); //used for statement values
+  Array.from(funcDef.varDefs.keys()).forEach(v => {
+    instrs.push(`(local $${v} i32)`);
+  });
+
   instrs.push(`(local.set $1emp (i32.const 0))`); //initialize it with 0
 
   //compile local variables
   let localVars: Set<string> =  new Set(funcDef.params.keys());;
   for(let [name, info] of Array.from(funcDef.varDefs.entries())){
-    instrs.push(`(local $${name} i32)`);
-
     const valueInstr = codeGenExpr(info.value, [localVars], store);
     instrs = instrs.concat(valueInstr);
     localVars.add(name);

@@ -137,8 +137,10 @@ function globalRetr(varIndex: number, store: ProgramStore) : number {
   const varInfo = store.memStore.fileVariables[varIndex];
 
   if(varInfo === undefined){
-    throw new Error("unknown global? caller: "+globalRetr.caller.name+" || "+varIndex+" | "+store.memStore.fileVariables.length+" | "+
-    store.memStore.curFileVarIndex+" PROGS: \n "+store.curProg.join("\n")+"\nINSTRS: \n"+store.curInstrs.join("\n"));
+    throw new Error(`unknown global? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
+       ${store.curProg.join("\n")}
+        INSTRS: 
+        ${store.curInstrs.join("\n")}`);
   }
 
   switch(varInfo.val.tag){

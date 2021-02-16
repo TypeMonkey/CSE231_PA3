@@ -198,7 +198,6 @@ export class BasicREPL {
     const instrs = compile(program, this.store);
     console.log("---- INSTRS!!!: \n "+instrs.join("\n"));
 
-    
     const value = await run(instrs.join("\n"), importObject);
 
     console.log("-------POST EXECUTE.  VALUE: "+value+" | "+program.topLevelStmts.length);
@@ -277,12 +276,13 @@ export class BasicREPL {
 
 
 //sample code!
+
 /*
 async function main(){
   const repl = new BasicREPL(importObject);
 
-  //const input = fs.readFileSync("sample.txt","ascii");
-  let v = await repl.run("print(True)");
+  const input = fs.readFileSync("sample3.txt","ascii");
+  let v = await repl.run(input);
   //console.log("-----FIN "+v.tag);
 }
 

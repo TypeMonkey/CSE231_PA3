@@ -65,15 +65,29 @@ export function compile(program: Program, store: ProgramStore) : Array<string> {
   }
 
   //compile top-level statements and put them in exported_func
-  instrs.push(`(func $exported_func (export "exported_func") (result i32)`);
+  //instrs.push(`(func $exported_func (export "exported_func") (result i32)`);
 
   //before we actually compile statments, we're gonna "convert"
   //the last exprstatement into a return statement
-  convertLastStatement(program.topLevelStmts);
+  //convertLastStatement(program.topLevelStmts);
+  instrs.push(`(func $exported_func (export "exported_func") (result i32)`);
+  instrs.push(`(local $1emp i32)`); //used for statement values
+  instrs.push(`(local.set $1emp (i32.const 0))`); //initialize it with 0
+
+  if(program.topLevelStmts.length >= 1){
+    const lastStatemnt = program.topLevelStmts[program.topLevelStmts.length - 1];
+    if(lastStatemnt.tag === "expr"){
+      //compile top-level statements and put them in exported_func
+      program.topLevelStmts[program.topLevelStmts.length - 1] = {tag: "ret", expr: lastStatemnt.expr};
+    }
+    
+  }
 
   for(let stmt of program.topLevelStmts){
     instrs = instrs.concat(codeGenStmt(stmt, new Array, store));
   }
+
+  instrs.push("(local.get $1emp)");
   instrs.push(")");
 
   return instrs;
@@ -98,6 +112,9 @@ function codeGenClass(classDef: ClassDef, store: ProgramStore) : Array<string>{
     let funcHeader : string = `(func $${funcLabel} (export "${funcLabel}") ${paramHeader} ${returnType}`;
     instrs.push(funcHeader);
 
+    instrs.push(`(local $1emp i32)`); //used for statement values
+    instrs.push(`(local.set $1emp (i32.const 0))`); //initialize it with 0
+
     //compile local variables
     let localVars: Set<string> = new Set(method.params.keys());
     //first add parameters to localVars
@@ -118,6 +135,7 @@ function codeGenClass(classDef: ClassDef, store: ProgramStore) : Array<string>{
       instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
     }
 
+    instrs.push("(local.get $1emp)");
     instrs.push(")");  //add concluding paranthesis
   }
 
@@ -143,6 +161,9 @@ function codeGenFunction(funcDef: FuncDef,
                              ${paramHeader} ${returnType}`;
   instrs.push(funcHeader);
 
+  instrs.push(`(local $1emp i32)`); //used for statement values
+  instrs.push(`(local.set $1emp (i32.const 0))`); //initialize it with 0
+
   //compile local variables
   let localVars: Set<string> =  new Set(funcDef.params.keys());;
   for(let [name, info] of Array.from(funcDef.varDefs.entries())){
@@ -161,6 +182,7 @@ function codeGenFunction(funcDef: FuncDef,
     instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
   }
 
+  instrs.push("(local.get $1emp)");
   instrs.push(")");  //add concluding paranthesis
   return instrs;
 }
@@ -182,11 +204,11 @@ export function codeGenStmt(stmt: Stmt,
       break;
     }
     case "ret":{
-      return [codeGenExpr(stmt.expr, localVars, store)];
+      return [`(local.set $1emp ${codeGenExpr(stmt.expr, localVars, store)})`];
     }
     case "ifstatement":{
       const condInstr = codeGenExpr(stmt.cond, localVars, store);
-      let instrs = [`(if (result i32) ${condInstr} `];
+      let instrs = [`(if ${condInstr} `];
 
       instrs.push("(then");
       for(let thenStmt of stmt.trueBranch){
@@ -224,10 +246,6 @@ export function codeGenStmt(stmt: Stmt,
         const fileVarIndex = store.memStore.fileVarIndex.get(stmt.name);
         return [`(call $5globst (i32.const ${fileVarIndex}) ${valueInstrs})`]
       }
-    }
-    case "ret":{
-      console.log("******** compiling return!!!! "+toStringStmt(stmt));
-      return [codeGenExpr(stmt.expr, localVars, store)];
     }
     case "expr": {
       return [codeGenExpr(stmt.expr, localVars, store)].concat("(drop)");

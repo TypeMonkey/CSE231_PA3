@@ -13,6 +13,7 @@ class Hello(object):
 x: Hello = None
 x = Hello()
 x.var1 = 20
+
 print(x.var1)
 print(x.method1(1,2))
 print(x.var1)

@@ -175,11 +175,19 @@ export function checkExpr(expr: Expr,
             let leftType : Type = checkExpr(expr.left, varMaps, globalTable);
             let rightType : Type = checkExpr(expr.right, varMaps, globalTable);
 
-            const equalityOps = new Set([BinOp.Equal, BinOp.NEqual, BinOp.Is]);
+            const equalityOps = new Set([BinOp.Equal, BinOp.NEqual]);
             const relational = new Set([BinOp.LEqual, BinOp.Less, BinOp.GEqual, BinOp.Great]);
             const arithOps = new Set([BinOp.Add, BinOp.Sub, BinOp.Mul, BinOp.Div, BinOp.Mul]);
 
-            if(equalityOps.has(expr.op)){
+            if(expr.op === BinOp.Is){
+                if(leftType.tag === "bool" || leftType.tag === "number" || 
+                   rightType.tag === "bool" || rightType.tag === "number"){
+                    throw new Error("'is' operator can only be used on class instances!");
+                }
+
+                return {tag: "bool"};
+            }
+            else if(equalityOps.has(expr.op)){
                if(leftType !== rightType){
                   throw new Error("Both operands must be of the same time when using '"+expr.op+"'");
                }

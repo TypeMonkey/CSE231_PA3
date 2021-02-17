@@ -186,7 +186,8 @@ export function checkExpr(expr: Expr,
                     throw new Error("'is' operator can only be used on class instances!");
                 }
 
-                return {tag: "bool"};
+                expr.type = {tag: "bool"};
+                return expr.type;
             }
             else if(equalityOps.has(expr.op)){
                if( (leftType.tag === "class" && (rightType.tag === "class" || rightType.tag === "none")) || 
@@ -310,7 +311,9 @@ export function checkExpr(expr: Expr,
             throw new Error(`The type ${typeToString(targetType)} has no methods!`);
         }
         case "nestedexpr": {
-            return checkExpr(expr.nested, varMaps, globalTable);
+            const nextedType = checkExpr(expr.nested, varMaps, globalTable);
+            expr.type = nextedType;
+            return expr.type;
         }
     }
 }

@@ -250,10 +250,13 @@ export class BasicREPL {
 
     const lastScriptStatement = program.topLevelStmts[program.topLevelStmts.length - 1];
     if(lastScriptStatement.tag === "ret"){
-      //why ret? in typecheck, we converted all last expression statements as ret
+      //why ret? in compiler.ts, we converted all last expression statements as ret
+
+      /*
       if(lastScriptStatement.expr.type === undefined){
         throw new Error("UNDEF TYPE LAST SCRIPT: "+toString(lastScriptStatement.expr)+" | "+toStringStmt(lastScriptStatement)+" \n "+source);
       }
+      */
 
       switch(lastScriptStatement.expr.type.tag){
         case "bool": return {tag: "bool", value: value === 0 ? false : true};
@@ -323,11 +326,11 @@ export class BasicREPL {
 
 
 //sample code!
-/*
+
 async function main(){
   const repl = new BasicREPL(importObject);
 
-  const input = fs.readFileSync("sample5.txt","ascii");
+  const input = fs.readFileSync("sample6.txt","ascii");
   let v = await repl.run(input);
   
   console.log("proceeding with repl!");
@@ -348,5 +351,5 @@ async function main(){
 }
 
 main()
-*/
+
 

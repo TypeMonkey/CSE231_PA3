@@ -29,6 +29,14 @@ export async function run(config: any){
     const wasmSource = `(module
       (func $print (import "imports" "print") (param i32) (result i32))
       (func $tester (import "built" "testerWester") (param i32) (result i32))
+
+      (func $C_getX_C_ (export "C_getX_C_") (param $self i32) (result i32)
+      (local $1emp i32)
+      (local.set $1emp (i32.const 0))
+      (local.set $1emp (call $print (i32.const 0)))
+      (local.get $1emp)
+      )
+
       (func $exported_func (export "exported_func") (result i32)
       (local $x i32)
       (call $tester (i32.const 10))

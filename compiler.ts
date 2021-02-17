@@ -238,7 +238,7 @@ export function codeGenStmt(stmt: Stmt,
       const attrIndex = attrClassDef.classVars.get(stmt.attr).index;
       const newValue = codeGenExpr(stmt.value, localVars, store);
 
-      return [`(call $3mute ${attrAccess} (i32.const ${attrIndex}) ${newValue})`];
+      return [`(call $3mute ${attrAccess} (i32.const ${attrIndex}) ${newValue})`, `(drop)`];
     }
     case "assign": {
       const valueInstrs = codeGenExpr(stmt.value, localVars, store);

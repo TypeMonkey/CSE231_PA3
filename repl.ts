@@ -1,7 +1,7 @@
 import {run} from "./runner";
 import {compile} from "./compiler";
 import fs from 'fs';
-import { Program, Stmt, FuncIdentity, Type, FuncDef, Value, VarDeclr, ClassDef, identityToLabel, identityToFSig } from "./ast";
+import { Program, Stmt, FuncIdentity, Type, FuncDef, Value, toString, identityToLabel, identityToFSig, toStringStmt } from "./ast";
 import { parse } from "./parser";
 import { checkStatement, GlobalTable, organizeProgram } from "./tc";
 import { importObject } from "./tests/import-object.test";
@@ -251,6 +251,10 @@ export class BasicREPL {
     const lastScriptStatement = program.topLevelStmts[program.topLevelStmts.length - 1];
     if(lastScriptStatement.tag === "ret"){
       //why ret? in typecheck, we converted all last expression statements as ret
+      if(lastScriptStatement.expr.type === undefined){
+        throw new Error("UNDEF TYPE LAST SCRIPT: "+toString(lastScriptStatement.expr)+" | "+toStringStmt(lastScriptStatement));
+      }
+
       switch(lastScriptStatement.expr.type.tag){
         case "bool": return {tag: "bool", value: value === 0 ? false : true};
         case "number": return {tag: "num", value: value};

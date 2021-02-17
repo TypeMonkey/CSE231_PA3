@@ -227,7 +227,7 @@ export class BasicREPL {
   }   
 
   async run(source : string) : Promise<Value>  { 
-    importObject.log("------ENTRANCE RUN: "+source+" | global vars: "+Array.from(this.store.typeStore.varMap.keys()).join("\n"));
+    console.log("------ENTRANCE RUN: "+source+" | global vars: "+Array.from(this.store.typeStore.varMap.keys()).join("\n"));
 
     const rawStates = parse(source);
 
@@ -245,7 +245,8 @@ export class BasicREPL {
     curInstr = curInstr.concat(instrs);
     */
 
-    let value : number = undefined;
+    const value : number = await run(instrs.join("\n"), importObject);
+    /*
     try{
       value = await run(instrs.join("\n"), importObject);
     }
@@ -259,6 +260,7 @@ export class BasicREPL {
 
       throw new Error("WASM ERROR? \n"+e.message+" \n"+source+" \n instrcs \n"+instrs.join("\n")+" \n ======PROG INFOS: "+this.store.memStore.fileVariables.length+" | "+this.store.memStore.fileVarIndex+" | "+fileVarStats);
     }
+    */
 
     console.log("-------POST EXECUTE.  VALUE: "+value+" | "+program.topLevelStmts.length);
 

@@ -202,7 +202,6 @@ export class BasicREPL {
       if(e === undefined){
         throw new Error("TRIED TO PUSH UNDEF");
       }
-      proxyArray.push(e);
     }
 
     //initialize program store

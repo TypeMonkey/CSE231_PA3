@@ -254,7 +254,7 @@ export class BasicREPL {
 
       for(let [name, index] of Array.from(this.store.memStore.fileVarIndex.entries())){
         const content = this.store.memStore.fileVariables[index];
-        fileVarStats += ` ===> FOR GVAR ${name} at index ${index}, content? ${content.val.tag} \n`;
+        fileVarStats += ` ===> FOR GVAR ${name} at index ${index}, content? ${content.val} , tp ${content.declrType.tag} \n`;
       }
 
       throw new Error("WASM ERROR? \n"+e.message+" \n"+source+" \n instrcs \n"+instrs.join("\n")+" \n ======PROG INFOS: "+this.store.memStore.fileVariables.length+" | "+this.store.memStore.fileVarIndex+" | "+fileVarStats);

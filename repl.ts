@@ -240,7 +240,13 @@ export class BasicREPL {
     curInstr = curInstr.concat(instrs);
     */
 
-    const value = await run(instrs.join("\n"), importObject);
+    let value : number = undefined;
+    try{
+      value = await run(instrs.join("\n"), importObject);
+    }
+    catch(e){
+      throw new Error("WASM ERROR? \n"+source+" \n instrcs \n"+instrs.join("\n"));
+    }
 
     console.log("-------POST EXECUTE.  VALUE: "+value+" | "+program.topLevelStmts.length);
 

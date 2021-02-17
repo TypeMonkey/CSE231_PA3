@@ -196,6 +196,7 @@ export class BasicREPL {
     builtinsLabel.set("print(number,)", "print_num");
     builtinsLabel.set("print(bool,)", "print_bool");
 
+
     //initialize program store
     this.store = {
       typeStore: {
@@ -204,8 +205,8 @@ export class BasicREPL {
                     varMap: new Map,
                  },
       memStore:  {
-                    curFileVarIndex: 1,
-                    fileVariables: [undefined],
+                    curFileVarIndex: 0,
+                    fileVariables: new Array,
                     fileVarIndex: new Map,
                     fileFunctionLabels: builtinsLabel,
                     fileTypes: new Map,
@@ -253,7 +254,7 @@ export class BasicREPL {
 
       for(let [name, index] of Array.from(this.store.memStore.fileVarIndex.entries())){
         const content = this.store.memStore.fileVariables[index];
-        fileVarStats += ` ===> FOR GVAR ${name} at index ${index}, content? ${content.val} , tp ${content.declrType.tag} \n`;
+        fileVarStats += ` ===> FOR GVAR ${name} at index ${index}, content? ${content.val} , tp ${content.declrType} \n`;
       }
 
       throw new Error("WASM ERROR? \n"+e.message+" \n"+source+" \n instrcs \n"+instrs.join("\n")+" \n ======PROG INFOS: "+this.store.memStore.fileVariables.length+" | "+this.store.memStore.fileVarIndex+" | "+fileVarStats);

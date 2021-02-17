@@ -73,13 +73,12 @@ function instanciate(typecode: number, store: ProgramStore) : number{
   return heapAddress;
 }
 
-function objRetr(address: number, attrIndex: number, store: ProgramStore) : number{
-  const heapObject = store.memStore.heap[address];
-  
-  if(heapObject.typeName === "none"){
+function objRetr(address: number, attrIndex: number, store: ProgramStore) : number{  
+  if(address === 0){
     throw new Error("Heap object at index "+address+" is None!");
   }
 
+  const heapObject = store.memStore.heap[address];
   const attrValue = heapObject.attributes[attrIndex];
   switch(attrValue.tag){
     case "bool": {return attrValue.value ? 1 : 0}
@@ -133,7 +132,7 @@ function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
   else{
     if(newValue === 0){
       console.log("------- gvar is nulled!");
-      store.memStore.heap[varIndex] = {typeName: "none", attributes: undefined};
+      store.memStore.fileVariables[varIndex].val = {tag: "none"};
     }
     else{
       const heapObject = store.memStore.heap[newValue];
@@ -233,7 +232,7 @@ export class BasicREPL {
 
     console.log("----TYPE CHECK COMPLETE!!");
     const instrs = compile(program, this.store);
-    console.log("---- INSTRS!!!: \n "+instrs.join("\n"));
+    //console.log("---- INSTRS!!!: \n "+instrs.join("\n"));
 
     //FOR DEV PURPOSES!
     /*
@@ -321,13 +320,11 @@ export class BasicREPL {
 
 //sample code!
 
-/*
-
 async function main(){
   const repl = new BasicREPL(importObject);
 
-  //const input = fs.readFileSync("sample3.txt","ascii");
-  let v = await repl.run("x:int = 0");
+  const input = fs.readFileSync("sample5.txt","ascii");
+  let v = await repl.run(input);
   
   console.log("proceeding with repl!");
 
@@ -347,5 +344,5 @@ async function main(){
 }
 
 main()
-*/
+
 

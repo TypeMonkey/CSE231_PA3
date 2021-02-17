@@ -2,7 +2,7 @@ const python = require('lezer-python');
 import fs from 'fs';
 //const input = "a : int = 0"
 
-const input = fs.readFileSync("sample.txt","ascii");
+const input = fs.readFileSync("sample5.txt","ascii");
 const tree = python.parser.parse(input);
 const cursor = tree.cursor();
 

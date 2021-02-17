@@ -142,7 +142,7 @@ export function checkExpr(expr: Expr,
         case "id": {
             const idType = lookup(expr.name, varMaps);
 
-            console.log("---------ID TYPECHECK: "+typeToString(idType)+" of "+expr.name);
+            console.log("---------ID TYPECHECK: of "+expr.name);
 
             if(idType === undefined){
                 throw new Error(`Unfound variable ${expr.name}.`);
@@ -189,12 +189,16 @@ export function checkExpr(expr: Expr,
                 return {tag: "bool"};
             }
             else if(equalityOps.has(expr.op)){
-               if(leftType !== rightType){
-                  throw new Error("Both operands must be of the same time when using '"+expr.op+"'");
+               if( (leftType.tag === "class" && (rightType.tag === "class" || rightType.tag === "none")) || 
+                   (rightType.tag === "class" && (leftType.tag === "class" || leftType.tag === "none"))  || 
+                   (leftType.tag === "none" && (rightType.tag === "class" || rightType.tag === "none")) || 
+                   (rightType.tag === "none" && (leftType.tag === "class" || leftType.tag === "none"))  ||
+                   (typeToString(leftType) === typeToString(rightType)) ){
+                    expr.type = {tag: "bool"}
+                    return expr.type;
                }
-
-               expr.type = {tag: "bool"}
-               return expr.type;
+               
+                throw new Error("Both operands must be of the same time when using '"+expr.op+"'");     
             }
             else if((relational.has(expr.op) || arithOps.has(expr.op))){
                 if(leftType.tag !== "number" || rightType.tag !== "number"){
@@ -270,6 +274,8 @@ export function checkExpr(expr: Expr,
             const targetType = checkExpr(expr.target, varMaps, globalTable);
             const targetTypeStr = typeToString(targetType);
 
+            console.log("-----CHECKING METH DEREF: "+toString(expr));
+
             if(targetType.tag === "class" && targetTypeStr !== "object"){
                 const targetClass = globalTable.classMap.get(targetType.name);
                 if(targetClass === undefined){
@@ -283,9 +289,9 @@ export function checkExpr(expr: Expr,
                 }
 
                 const instanceMethodMap : Map<string, FuncIdentity> = new Map;
-                console.log(`-----FOR CLASS ${targetClass.name}, method count ${targetClass.methods.size}`);
+                //console.log(`-----FOR CLASS ${targetClass.name}, method count ${targetClass.methods.size}`);
                 for(let [sig, def] of Array.from(targetClass.methods.entries())){
-                    console.log("----loading class method: "+sig);
+                    //console.log("----loading class method: "+sig);
                     instanceMethodMap.set(sig, def.identity);
                 }
 
@@ -413,12 +419,9 @@ export function checkFunctionDef(funcDef: FuncDef, globalTable: GlobalTable) {
             throw new Error(`'${name}' is of type ${typeToString(val.varType)} but is being assigned a ${typeToString(valueType)}`);
         }
 
-        console.log("----ADDING LOCAL VAR TO FUNC MAP: "+name);
+        //console.log("----ADDING LOCAL VAR TO FUNC MAP: "+name);
         localScope.set(name, val.varType);
     }
-
-    //we'll now use a new varMaps with the localscope at the start
-    const newVarMaps = [localScope].concat(globalTable.varMap);
 
     //a return statement may have been encountered already.
     //if so, there's no need to check other paths
@@ -426,12 +429,12 @@ export function checkFunctionDef(funcDef: FuncDef, globalTable: GlobalTable) {
 
     //check function body
     for(let funcState of funcDef.bodyStms){
-        checkStatement(funcState, newVarMaps, globalTable);
+        returnType = checkStatement(funcState, [localScope], globalTable);
     }
 
     if(funcDef.identity.returnType.tag !== "none"){
         if(!checkReturn(funcDef.bodyStms, funcDef.identity.returnType)){
-            console.log(" recent return type: "+funcDef.identity.returnType.tag);
+            console.log(" recent return type: "+typeToString(returnType));
             throw new Error("The function '"+identityToFSig(funcDef.identity)+"' must have a return of '"+typeToString(funcDef.identity.returnType)+"' on all paths");
         }
     }
@@ -458,7 +461,7 @@ export function checkClassDef(classDef: ClassDef, globalTable: GlobalTable) {
     for(let fdef of Array.from(classDef.methods.values())){
         if(fdef.params.has("self") && 
            typeToString(fdef.params.get("self")) === classDef.name){
-           console.log("========TYPECHECKING INSTANCE METH: "+identityToFSig(fdef.identity));
+           //console.log("========TYPECHECKING INSTANCE METH: "+identityToFSig(fdef.identity));
            checkFunctionDef(fdef, globalTable);
         }
         else{
@@ -511,7 +514,7 @@ export function organizeProgram(stmts: Array<Stmt>,
                     throw new Error("Already has function '"+sig+"'");
                 }
                 else if(stmt.def.params.has("self")){
-                    console.log(` -----TC METHOD ATTACH ${sig} hostDec? ${typeToString(stmt.def.params.get("self"))} ${Array.from(globalClasses.keys())}`);
+                    //console.log(` -----TC METHOD ATTACH ${sig} hostDec? ${typeToString(stmt.def.params.get("self"))} ${Array.from(globalClasses.keys())}`);
                     const hostClass = globalClasses.get(typeToString(stmt.def.params.get("self")));
                     
                     if(hostClass.methods.has(sig)){
@@ -532,14 +535,14 @@ export function organizeProgram(stmts: Array<Stmt>,
                     throw new Error("Already has global variable '"+stmt.name+"'");
                 }
                 else{
-                    console.log(`----SETTING GLOBAL VAR ${stmt.name} with type ${typeToString(stmt.info.varType)}`);
+                    //console.log(`----SETTING GLOBAL VAR ${stmt.name} with type ${typeToString(stmt.info.varType)}`);
                     globalVars.set(stmt.name, stmt.info.varType);
                     fileVars.set(stmt.name, stmt.info);
                 }
                 break;
             }
             default: {
-                console.log("-----TOP LEVEL STATEMENTS: "+toStringStmt(stmt));
+                //console.log("-----TOP LEVEL STATEMENTS: "+toStringStmt(stmt));
                 topLevelStmts.push(stmt);
                 break;
             }
@@ -553,7 +556,7 @@ export function organizeProgram(stmts: Array<Stmt>,
 
     //check global variables
     for(let [name, val] of Array.from(fileVars.entries())){
-        console.log(`====> CHECKING GVAR ${name}`);
+        //console.log(`====> CHECKING GVAR ${name}`);
         let valueType = checkExpr(val.value, [globalEnv.varMap], globalEnv);
         if(!isAssignable(val.varType, valueType)){
             throw new Error("'"+name+"' is of type "+typeToString(val.varType)+" but is being assigned a "+valueType);
@@ -574,7 +577,7 @@ export function organizeProgram(stmts: Array<Stmt>,
 
     //check script statements
     for(let stmt of topLevelStmts){
-        console.log(" ----typechking statement with varmap: "+Array.from(globalEnv.varMap.keys())+" | stmt tag: "+stmt.tag);
+        //console.log(" ----typechking statement with varmap: "+Array.from(globalEnv.varMap.keys())+" | stmt tag: "+stmt.tag);
         checkStatement(stmt, [globalEnv.varMap], globalEnv);
     }
 

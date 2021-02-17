@@ -102,9 +102,9 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       return {tag: "attrderef", target: targetExpr, attrName: attrName};
     }
     case "CallExpression": {
-      console.log(" ==> In CallExpression");
+      //console.log(" ==> In CallExpression");
       c.firstChild();
-      console.log("    * first child: "+c.type.name);
+      //console.log("    * first child: "+c.type.name);
 
       let callTarget : Expr = traverseExpr(c, s);
       c.nextSibling(); // go to arglist
@@ -152,7 +152,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
         return {tag: "funccall", name : callTarget.name, args: callArgs}; 
       }
 
-      throw new Error("Unknown target of call: "+callTarget.tag);
+      throw new Error("Unknown target of call: "+callTarget.tag+" "+s.substring(c.from, c.to));
     }
     default:
       //DEV NOTE: This is problematic but fixes a lot of problems
@@ -179,32 +179,34 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       let methods : Map<string, FuncDef> = new Map;
       let variables : Map<string, {index: number, varDec: VarDeclr}> = new Map;
 
-      console.log(`----PARSING CLASS ${className} , cur: ${c.node.type.name}`);
+      //console.log(`----PARSING CLASS ${className} , cur: ${c.node.type.name}`);
 
       let attrIndex = 0;
 
-      do{
-        let classComponent : Stmt = traverseStmt(c, s);
-
-        console.log(`   ==> method or var ${classComponent.tag}`);
-
-        if(classComponent.tag === "funcdef"){
-          if(methods.has(identityToFSig(classComponent.def.identity))){
-            throw new Error(`The class ${className} already has a function ${identityToFSig(classComponent.def.identity)}`);
+      if(s.substring(c.from, c.to).trim().length !== 0){
+        do{
+          let classComponent : Stmt = traverseStmt(c, s);
+  
+          //console.log(`   ==> method or var ${classComponent.tag}`);
+  
+          if(classComponent.tag === "funcdef"){
+            if(methods.has(identityToFSig(classComponent.def.identity))){
+              throw new Error(`The class ${className} already has a function ${identityToFSig(classComponent.def.identity)}`);
+            }
+            methods.set(identityToFSig(classComponent.def.identity), classComponent.def);
           }
-          methods.set(identityToFSig(classComponent.def.identity), classComponent.def);
-        }
-        else if(classComponent.tag === "vardec"){
-          if(variables.has(classComponent.name)){
-            throw new Error(`The class ${className} already has an attribute ${classComponent.name}`);
+          else if(classComponent.tag === "vardec"){
+            if(variables.has(classComponent.name)){
+              throw new Error(`The class ${className} already has an attribute ${classComponent.name}`);
+            }
+  
+            //console.log(`----PARSING CLASS ${className} - var: ${classComponent.name}`);
+  
+            variables.set(classComponent.name, {index: attrIndex, varDec: classComponent.info});
+            attrIndex++;
           }
-
-          console.log(`----PARSING CLASS ${className} - var: ${classComponent.name}`);
-
-          variables.set(classComponent.name, {index: attrIndex, varDec: classComponent.info});
-          attrIndex++;
-        }
-      } while(c.nextSibling())
+        } while(c.nextSibling())
+      }
 
       c.parent();
 
@@ -257,7 +259,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
         c.nextSibling(); //value of the variable 
         let lvarValue : Expr = traverseExpr(c,s);
         c.parent();
-        console.log("******END OF VAR '"+varName+"'");
+        //console.log("******END OF VAR '"+varName+"'");
 
         if(localVarType === undefined){
           return {tag: "assign", name: varName, value : lvarValue};
@@ -290,7 +292,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       while (s.substring(c.from, c.to) !== ")") {
         //keep going through the ParamList until we hit ")"
         if(s.substring(c.from, c.to) !== ","){
-          console.log(" --- PARAM FOR: '"+funcName+"' : "+s.substring(c.from, c.to)+" ? "+expectName);
+          //console.log(" --- PARAM FOR: '"+funcName+"' : "+s.substring(c.from, c.to)+" ? "+expectName);
           if(expectName){
             tempParamName = s.substring(c.from, c.to);
 
@@ -335,10 +337,10 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
         c.nextSibling(); //goes to function body
       }
 
-      console.log("----FUNC POST PARAM: "+c.node.type.name);
+      //console.log("----FUNC POST PARAM: "+c.node.type.name);
 
       c.firstChild(); //enters function body, lands on colon
-      console.log("----FUNC POST PARAM After: "+c.node.type.name);
+      //console.log("----FUNC POST PARAM After: "+c.node.type.name);
 
       let funcLocalVars : Map<string, VarDeclr> = new Map();
       let funcStates : Array<Stmt> = new Array;
@@ -346,10 +348,10 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       //local vars must be declared before any other statement
 
       while (c.nextSibling()) {
-        console.log("---FUNC STATEMENT: "+c.node.type.name);
+        //console.log("---FUNC STATEMENT: "+c.node.type.name);
         
         const bodyStmt = traverseStmt(c, s);
-        console.log("*************result: "+toStringStmt(bodyStmt));
+        //console.log("*************result: "+toStringStmt(bodyStmt));
         
         if(bodyStmt.tag === "vardec"){
           if(funcLocalVars.has(bodyStmt.name)){
@@ -390,7 +392,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       c.parent(); //goes back to if-statement node
 
       c.nextSibling(); //goes to else statement
-      console.log("----BACK TO ELSE: "+c.node.type.name);
+      //console.log("----BACK TO ELSE: "+c.node.type.name);
       c.nextSibling(); //goes to false branch's body
       c.firstChild();  //goes into true branch's body, starting at the semicolon
       const falseBranch: Array<Stmt> = new Array;
@@ -411,10 +413,13 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       c.firstChild();  //enter node and land on the return keyword
       c.nextSibling(); //jump to the target expression
 
-      let targetExpr : Expr = traverseExpr(c, s);
+      let targetExpr : Expr = undefined;
+      if(s.substring(c.from, c.to).trim().length > 0){
+        targetExpr = traverseExpr(c, s);
+      }
       c.parent();
 
-      return {tag: "ret", expr: targetExpr};
+      return {tag: "ret", expr: targetExpr === undefined ? {tag: "value", value: {tag: "None"}} : targetExpr};
     }
     case "PassStatement": {
       return {tag: "pass"};

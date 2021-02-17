@@ -1,6 +1,5 @@
-x: int = 10
-if 100 < 200:
-    x = 30
-    print(x)
+x:int = 0
+if True:
+  x = 5
 else:
-    print(20)
+  x = 3

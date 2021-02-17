@@ -245,7 +245,7 @@ export class BasicREPL {
       value = await run(instrs.join("\n"), importObject);
     }
     catch(e){
-      throw new Error("WASM ERROR? \n"+e.message+" \n"+source+" \n instrcs \n"+instrs.join("\n"));
+      throw new Error("WASM ERROR? \n"+e.message+" \n"+source+" \n instrcs \n"+instrs.join("\n")+" \n ======PROG INFOS: "+this.store.memStore.fileVariables.length+" | "+this.store.memStore.fileVarIndex+" | "+Array.from(this.store.memStore.fileVarIndex.keys()).join(","));
     }
 
     console.log("-------POST EXECUTE.  VALUE: "+value+" | "+program.topLevelStmts.length);

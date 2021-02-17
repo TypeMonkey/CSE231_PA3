@@ -26,6 +26,15 @@ describe("PA3 visible tests", () => {
   //8
   assert("literal-bool-negation", `x:bool = False \n not x`,  PyBool(true));
 
+  //9
+  assert("if-else", 
+      ` 
+       x:int = 0
+       if True: \n
+         x = 5  \n
+       else:    \n
+         x = 3  \n`, PyNone());
+
   assert("sample", 
      `  100 + 20 + 3 \n
         True         \n

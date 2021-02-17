@@ -196,14 +196,6 @@ export class BasicREPL {
     builtinsLabel.set("print(number,)", "print_num");
     builtinsLabel.set("print(bool,)", "print_bool");
 
-    const proxyArray: any = new Array;
-
-    proxyArray.push = function(e: any){
-      if(e === undefined){
-        throw new Error("TRIED TO PUSH UNDEF");
-      }
-    }
-
     //initialize program store
     this.store = {
       typeStore: {
@@ -212,8 +204,8 @@ export class BasicREPL {
                     varMap: new Map,
                  },
       memStore:  {
-                    curFileVarIndex: 0,
-                    fileVariables: proxyArray,
+                    curFileVarIndex: 1,
+                    fileVariables: [undefined],
                     fileVarIndex: new Map,
                     fileFunctionLabels: builtinsLabel,
                     fileTypes: new Map,

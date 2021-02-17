@@ -104,12 +104,12 @@ function codeGenClass(classDef: ClassDef, store: ProgramStore) : Array<string>{
     }
 
     //add function return type, if it's not None
-    const returnType = method.identity.returnType.tag !== "none" ? "(result i32)" : "";
+    //const returnType = method.identity.returnType.tag !== "none" ? "(result i32)" : "";
 
     const funcLabel = `${classDef.name}_${identityToLabel(method.identity)}`;
 
     //now put it all together
-    let funcHeader : string = `(func $${funcLabel} (export "${funcLabel}") ${paramHeader} ${returnType}`;
+    let funcHeader : string = `(func $${funcLabel} (export "${funcLabel}") ${paramHeader} (result i32)`;
     instrs.push(funcHeader);
 
     instrs.push(`(local $1emp i32)`); //used for statement values
@@ -137,9 +137,10 @@ function codeGenClass(classDef: ClassDef, store: ProgramStore) : Array<string>{
       instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
     }
 
-    if(method.identity.returnType.tag !== "none"){
-      instrs.push("(local.get $1emp)");
+    if(method.identity.returnType.tag === "none"){
+      instrs.push("(local.set $1emp (i32.const 0))");
     }
+    instrs.push("(local.get $1emp)");
     instrs.push(")");  //add concluding paranthesis
   }
 
@@ -157,12 +158,12 @@ function codeGenFunction(funcDef: FuncDef,
   }
 
   //add function return type, if it's not None
-  let returnType : string = funcDef.identity.returnType.tag !== "none" ? "(result i32)" : "";
+  //let returnType : string = funcDef.identity.returnType.tag !== "none" ? "(result i32)" : "";
 
   //now put it all together
   let funcHeader : string = `(func $${store.memStore.fileFunctionLabels.get(identityToFSig(funcDef.identity))} 
                              (export "${store.memStore.fileFunctionLabels.get(identityToFSig(funcDef.identity))}") 
-                             ${paramHeader} ${returnType}`;
+                             ${paramHeader} (result i32)`;
   instrs.push(funcHeader);
 
   instrs.push(`(local $1emp i32)`); //used for statement values
@@ -188,9 +189,10 @@ function codeGenFunction(funcDef: FuncDef,
     instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
   }
 
-  if(funcDef.identity.returnType.tag !== "none"){
-    instrs.push("(local.get $1emp)");
+  if(funcDef.identity.returnType.tag === "none"){
+    instrs.push("(local.set $1emp (i32.const 0))");
   }
+  instrs.push("(local.get $1emp)");
   instrs.push(")");  //add concluding paranthesis
   return instrs;
 }

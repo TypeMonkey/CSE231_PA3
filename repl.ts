@@ -104,8 +104,13 @@ function objMut(address: number, attrIndex: number, newValue: number, store: Pro
     attrValue.attributes[attrIndex] = {tag: "bool", value: newValue === 0? false : true};
   }
   else{
-    const heapObject = store.memStore.heap[newValue];
-    attrValue.attributes[attrIndex] = {tag: "object", name: heapObject.typeName, address: newValue};
+    if(newValue === 0){
+      attrValue.attributes[attrIndex] = {tag: "none"};
+    }
+    else{
+      const heapObject = store.memStore.heap[newValue];
+      attrValue.attributes[attrIndex] = {tag: "object", name: heapObject.typeName, address: newValue};
+    }
   }
 }
 

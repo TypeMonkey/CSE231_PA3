@@ -245,7 +245,7 @@ export class BasicREPL {
       value = await run(instrs.join("\n"), importObject);
     }
     catch(e){
-      throw new Error("WASM ERROR? \n"+source+" \n instrcs \n"+instrs.join("\n"));
+      throw new Error("WASM ERROR? \n"+e.message+" \n"+source+" \n instrcs \n"+instrs.join("\n"));
     }
 
     console.log("-------POST EXECUTE.  VALUE: "+value+" | "+program.topLevelStmts.length);

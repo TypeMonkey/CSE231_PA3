@@ -56,8 +56,14 @@ export async function run(wasmsource : string, config: any) : Promise<number> {
 
   const myModule = wabtInterface.parseWat("test.wat", wasmSource);
   var asBinary = myModule.toBinary({});
-  var wasmModule = await WebAssembly.instantiate(asBinary.buffer, config);
-  const result = (wasmModule.instance.exports.exported_func as any)();
 
-  return result;
+  try {
+    var wasmModule = await WebAssembly.instantiate(asBinary.buffer, config);
+
+    const result = (wasmModule.instance.exports.exported_func as any)();
+
+    return result;
+  } catch (error) {
+    throw new Error(`--WASM ERROR: ${error.message} \n ${wasmSource}`);
+  }
 }

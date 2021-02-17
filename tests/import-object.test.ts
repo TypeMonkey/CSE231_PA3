@@ -39,5 +39,7 @@ export const importObject = {
     pow: Math.pow,
   },
 
+  log: (arg: any) =>  process.stdout.write(String(arg)+"\n"),
+
   output: "",
 };

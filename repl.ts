@@ -319,7 +319,7 @@ export class BasicREPL {
 
 
 //sample code!
-
+/*
 async function main(){
   const repl = new BasicREPL(importObject);
 
@@ -344,5 +344,5 @@ async function main(){
 }
 
 main()
-
+*/
 

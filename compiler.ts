@@ -137,7 +137,9 @@ function codeGenClass(classDef: ClassDef, store: ProgramStore) : Array<string>{
       instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
     }
 
-    instrs.push("(local.get $1emp)");
+    if(method.identity.returnType.tag !== "none"){
+      instrs.push("(local.get $1emp)");
+    }
     instrs.push(")");  //add concluding paranthesis
   }
 
@@ -186,7 +188,9 @@ function codeGenFunction(funcDef: FuncDef,
     instrs = instrs.concat(codeGenStmt(fStmt, [localVars], store));
   }
 
-  instrs.push("(local.get $1emp)");
+  if(funcDef.identity.returnType.tag !== "none"){
+    instrs.push("(local.get $1emp)");
+  }
   instrs.push(")");  //add concluding paranthesis
   return instrs;
 }
@@ -238,7 +242,7 @@ export function codeGenStmt(stmt: Stmt,
       const attrIndex = attrClassDef.classVars.get(stmt.attr).index;
       const newValue = codeGenExpr(stmt.value, localVars, store);
 
-      return [`(call $3mute ${attrAccess} (i32.const ${attrIndex}) ${newValue})`, `(drop)`];
+      return [`(call $3mute ${attrAccess} (i32.const ${attrIndex}) ${newValue})`];
     }
     case "assign": {
       const valueInstrs = codeGenExpr(stmt.value, localVars, store);

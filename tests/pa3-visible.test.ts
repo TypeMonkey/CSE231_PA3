@@ -20,6 +20,12 @@ describe("PA3 visible tests", () => {
   //6
   assert("literal-bool-negation", `not False`,  PyBool(true));
 
+  //7
+  assert("literal-bool-negation", `not 10 != 20`,  PyBool(false));
+
+  //8
+  assert("literal-bool-negation", `x:bool = False \n not x`,  PyBool(true));
+
   assert("sample", 
      `  100 + 20 + 3 \n
         True         \n

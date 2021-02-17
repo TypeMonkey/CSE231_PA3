@@ -252,7 +252,7 @@ export class BasicREPL {
     if(lastScriptStatement.tag === "ret"){
       //why ret? in typecheck, we converted all last expression statements as ret
       if(lastScriptStatement.expr.type === undefined){
-        throw new Error("UNDEF TYPE LAST SCRIPT: "+toString(lastScriptStatement.expr)+" | "+toStringStmt(lastScriptStatement));
+        throw new Error("UNDEF TYPE LAST SCRIPT: "+toString(lastScriptStatement.expr)+" | "+toStringStmt(lastScriptStatement)+" \n "+source);
       }
 
       switch(lastScriptStatement.expr.type.tag){
